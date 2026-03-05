@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cronômetro — Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;600;900&display=swap" rel="stylesheet"/>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0f;
+      --panel: #13131c;
+      --border: #1e1e30;
+      --accent: #00f5a0;
+      --accent2: #00c9ff;
+      --danger: #ff3e3e;
+      --warn: #ffb800;
+      --text: #e8e8f0;
+      --muted: #55556a;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Barlow', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 60% 40% at 20% 80%, rgba(0,245,160,0.06) 0%, transparent 70%),
+        radial-gradient(ellipse 50% 50% at 80% 20%, rgba(0,201,255,0.05) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* LOGIN */
+    #login-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+      animation: fadeIn 0.4s ease;
+    }
+
+    .login-box {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 48px 56px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      min-width: 360px;
+    }
+
+    .login-box h2 {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .login-box input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 18px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 16px;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s;
+      text-align: center;
+      letter-spacing: 0.15em;
+    }
+
+    .login-box input:focus {
+      border-color: var(--accent);
+    }
+
+    .btn-login {
+      width: 100%;
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      padding: 14px;
+      font-family: 'Barlow', sans-serif;
+      font-size: 14px;
+      font-weight: 900;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+
+    .btn-login:hover { opacity: 0.85; }
+    .btn-login:active { transform: scale(0.98); }
+
+    #login-error {
+      font-size: 13px;
+      color: var(--danger);
+      letter-spacing: 0.05em;
+      height: 16px;
+    }
+
+    /* MAIN PANEL */
+    #admin-panel {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 32px;
+      animation: fadeIn 0.4s ease;
+    }
+
+    .badge {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--accent);
+      border: 1px solid rgba(0,245,160,0.3);
+      border-radius: 20px;
+      padding: 5px 16px;
+    }
+
+    .timer-display {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: clamp(64px, 12vw, 120px);
+      letter-spacing: 0.05em;
+      color: var(--text);
+      text-shadow: 0 0 40px rgba(0,245,160,0.3), 0 0 80px rgba(0,245,160,0.1);
+      transition: color 0.3s;
+      user-select: none;
+    }
+
+    .timer-display.running {
+      color: var(--accent);
+      text-shadow: 0 0 40px rgba(0,245,160,0.5), 0 0 80px rgba(0,245,160,0.2);
+    }
+
+    .timer-display.paused {
+      color: var(--warn);
+      text-shadow: 0 0 40px rgba(255,184,0,0.4);
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: background 0.3s;
+    }
+
+    .status-dot.running {
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+      animation: pulse 1.5s infinite;
+    }
+
+    .status-dot.paused { background: var(--warn); }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .controls {
+      display: flex;
+      gap: 16px;
+    }
+
+    .btn {
+      font-family: 'Barlow', sans-serif;
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      border: none;
+      border-radius: 10px;
+      padding: 16px 36px;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s, box-shadow 0.2s;
+    }
+
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.25; cursor: not-allowed; }
+
+    .btn-start {
+      background: var(--accent);
+      color: #000;
+      box-shadow: 0 4px 24px rgba(0,245,160,0.25);
+    }
+
+    .btn-pause {
+      background: var(--warn);
+      color: #000;
+      box-shadow: 0 4px 24px rgba(255,184,0,0.2);
+    }
+
+    .btn-reset {
+      background: transparent;
+      color: var(--danger);
+      border: 1px solid rgba(255,62,62,0.3);
+    }
+
+    .btn-reset:hover { border-color: var(--danger); background: rgba(255,62,62,0.05); }
+
+    .viewer-link {
+      font-size: 13px;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+    }
+
+    .viewer-link a {
+      color: var(--accent2);
+      text-decoration: none;
+      font-family: 'Share Tech Mono', monospace;
+    }
+
+    .viewer-link a:hover { text-decoration: underline; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .connected-count {
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- LOGIN -->
+  <div id="login-screen">
+    <div class="login-box">
+      <h2>⬡ Painel Admin</h2>
+      <input type="password" id="password-input" placeholder="senha" autocomplete="off" />
+      <div id="login-error"></div>
+      <button class="btn-login" onclick="doLogin()">Entrar</button>
+    </div>
+  </div>
+
+  <!-- ADMIN -->
+  <div id="admin-panel">
+    <span class="badge">● Admin Control</span>
+
+    <div class="timer-display" id="timer-display">00:00:00.0</div>
+
+    <div class="status-row">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-text">PARADO</span>
+    </div>
+
+    <div class="controls">
+      <button class="btn btn-start" id="btn-start" onclick="timerStart()">▶ Start</button>
+      <button class="btn btn-pause" id="btn-pause" onclick="timerPause()" disabled>⏸ Pause</button>
+      <button class="btn btn-reset" onclick="timerReset()">↺ Reset</button>
+    </div>
+
+    <div class="viewer-link">
+      Compartilhe a tela de visualização: <a href="/viewer.html" target="_blank">/viewer.html</a>
+    </div>
+  </div>
+
+<script>
+  const socket = io();
+  let state = { status: 'stopped', startTime: null, elapsed: 0 };
+  let rafId = null;
+
+  socket.on('timer:state', (s) => {
+    state = s;
+    updateUI();
+  });
+
+  function doLogin() {
+    const pw = document.getElementById('password-input').value;
+    socket.emit('admin:login', pw, (res) => {
+      if (res.success) {
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('admin-panel').style.display = 'flex';
+        startRenderLoop();
+      } else {
+        document.getElementById('login-error').textContent = 'Senha incorreta.';
+      }
+    });
+  }
+
+  document.getElementById('password-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') doLogin();
+  });
+
+  function timerStart() { socket.emit('timer:start'); }
+  function timerPause() { socket.emit('timer:pause'); }
+  function timerReset() { socket.emit('timer:reset'); }
+
+  function getElapsed() {
+    if (state.status === 'running') {
+      return state.elapsed + (Date.now() - state.startTime);
+    }
+    return state.elapsed;
+  }
+
+  function formatTime(ms) {
+    const totalTenths = Math.floor(ms / 100);
+    const tenths = totalTenths % 10;
+    const totalSec = Math.floor(ms / 1000);
+    const secs = totalSec % 60;
+    const mins = Math.floor(totalSec / 60) % 60;
+    const hrs = Math.floor(totalSec / 3600);
+    return `${String(hrs).padStart(2,'0')}:${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}.${tenths}`;
+  }
+
+  function updateUI() {
+    const display = document.getElementById('timer-display');
+    const dot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
+    const btnStart = document.getElementById('btn-start');
+    const btnPause = document.getElementById('btn-pause');
+
+    dot.className = 'status-dot ' + state.status;
+    display.className = 'timer-display ' + state.status;
+
+    if (state.status === 'running') {
+      statusText.textContent = 'RODANDO';
+      btnStart.disabled = true;
+      btnPause.disabled = false;
+    } else if (state.status === 'paused') {
+      statusText.textContent = 'PAUSADO';
+      btnStart.disabled = false;
+      btnStart.textContent = '▶ Continuar';
+      btnPause.disabled = true;
+    } else {
+      statusText.textContent = 'PARADO';
+      btnStart.disabled = false;
+      btnStart.textContent = '▶ Start';
+      btnPause.disabled = true;
+    }
+  }
+
+  function startRenderLoop() {
+    function tick() {
+      document.getElementById('timer-display').textContent = formatTime(getElapsed());
+      rafId = requestAnimationFrame(tick);
+    }
+    tick();
+  }
+</script>
+</body>
+</html>

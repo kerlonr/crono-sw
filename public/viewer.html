@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cronômetro — Viewer</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;600;900&display=swap" rel="stylesheet"/>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #060608;
+      --accent: #00f5a0;
+      --accent2: #00c9ff;
+      --warn: #ffb800;
+      --text: #e8e8f0;
+      --muted: #33333f;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Barlow', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 28px;
+      overflow: hidden;
+    }
+
+    /* Animated background grid */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,245,160,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,245,160,0.03) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 70% 50% at 50% 50%, transparent 30%, var(--bg) 100%);
+      pointer-events: none;
+    }
+
+    .glow-ring {
+      position: fixed;
+      width: 600px;
+      height: 600px;
+      border-radius: 50%;
+      border: 1px solid rgba(0,245,160,0.06);
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      transition: border-color 0.5s;
+    }
+
+    .glow-ring.running {
+      border-color: rgba(0,245,160,0.12);
+      box-shadow: 0 0 120px rgba(0,245,160,0.06) inset;
+      animation: ringPulse 2s ease-in-out infinite;
+    }
+
+    .glow-ring.paused { border-color: rgba(255,184,0,0.1); }
+
+    @keyframes ringPulse {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+      50% { transform: translate(-50%, -50%) scale(1.02); opacity: 0.7; }
+    }
+
+    .content {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.4em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .timer-display {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: clamp(72px, 15vw, 160px);
+      letter-spacing: 0.04em;
+      color: var(--text);
+      text-shadow: none;
+      transition: color 0.4s, text-shadow 0.4s;
+      user-select: none;
+      line-height: 1;
+    }
+
+    .timer-display.running {
+      color: var(--accent);
+      text-shadow:
+        0 0 30px rgba(0,245,160,0.6),
+        0 0 80px rgba(0,245,160,0.2),
+        0 0 160px rgba(0,245,160,0.08);
+    }
+
+    .timer-display.paused {
+      color: var(--warn);
+      text-shadow: 0 0 30px rgba(255,184,0,0.5);
+    }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: background 0.3s, box-shadow 0.3s;
+    }
+
+    .status-dot.running {
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+      animation: blink 1.5s infinite;
+    }
+
+    .status-dot.paused { background: var(--warn); }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .viewer-badge {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: rgba(0,201,255,0.4);
+      border: 1px solid rgba(0,201,255,0.15);
+      border-radius: 20px;
+      padding: 4px 14px;
+    }
+
+    .connecting {
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0.15em;
+      animation: fadeOsc 1.5s infinite;
+    }
+
+    @keyframes fadeOsc {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="glow-ring" id="glow-ring"></div>
+
+  <div class="content">
+    <div class="viewer-badge">● Viewer</div>
+    <div class="label">Cronômetro Sincronizado</div>
+    <div class="timer-display" id="timer-display">00:00:00.0</div>
+    <div class="status-bar">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-text">AGUARDANDO</span>
+    </div>
+  </div>
+
+<script>
+  const socket = io();
+  let state = { status: 'stopped', startTime: null, elapsed: 0 };
+
+  socket.on('connect', () => {
+    document.getElementById('status-text').textContent = 'CONECTADO';
+  });
+
+  socket.on('disconnect', () => {
+    document.getElementById('status-text').textContent = 'RECONECTANDO...';
+  });
+
+  socket.on('timer:state', (s) => {
+    state = s;
+    updateUI();
+  });
+
+  function getElapsed() {
+    if (state.status === 'running') {
+      return state.elapsed + (Date.now() - state.startTime);
+    }
+    return state.elapsed;
+  }
+
+  function formatTime(ms) {
+    const totalTenths = Math.floor(ms / 100);
+    const tenths = totalTenths % 10;
+    const totalSec = Math.floor(ms / 1000);
+    const secs = totalSec % 60;
+    const mins = Math.floor(totalSec / 60) % 60;
+    const hrs = Math.floor(totalSec / 3600);
+    return `${String(hrs).padStart(2,'0')}:${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}.${tenths}`;
+  }
+
+  function updateUI() {
+    const display = document.getElementById('timer-display');
+    const dot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
+    const ring = document.getElementById('glow-ring');
+
+    dot.className = 'status-dot ' + state.status;
+    display.className = 'timer-display ' + state.status;
+    ring.className = 'glow-ring ' + state.status;
+
+    if (state.status === 'running') statusText.textContent = 'RODANDO';
+    else if (state.status === 'paused') statusText.textContent = 'PAUSADO';
+    else statusText.textContent = 'PARADO';
+  }
+
+  function tick() {
+    document.getElementById('timer-display').textContent = formatTime(getElapsed());
+    requestAnimationFrame(tick);
+  }
+
+  tick();
+</script>
+</body>
+</html>
