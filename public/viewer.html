@@ -191,22 +191,8 @@
 
 <script>
   const socket = io();
-  let state = { status: 'stopped', startTime: null, elapsed: 0 };
-  let serverOffset = 0;
 
-  async function syncTime() {
-    const t0 = Date.now();
-    const res = await fetch('/time');
-    const { serverTime } = await res.json();
-    const t1 = Date.now();
-    const latency = (t1 - t0) / 2;
-    serverOffset = serverTime - (t0 + latency);
-  }
-
-  function now() { return Date.now() + serverOffset; }
-
-  socket.on('connect', async () => {
-    await syncTime();
+  socket.on('connect', () => {
     document.getElementById('status-text').textContent = 'CONECTADO';
   });
 
@@ -214,17 +200,23 @@
     document.getElementById('status-text').textContent = 'RECONECTANDO...';
   });
 
-  socket.on('timer:state', (s) => {
-    state = s;
-    updateUI();
-  });
+  // Servidor envia o tempo já calculado a cada 100ms
+  socket.on('timer:tick', ({ status, elapsed }) => {
+    document.getElementById('timer-display').textContent = formatTime(elapsed);
 
-  function getElapsed() {
-    if (state.status === 'running') {
-      return state.elapsed + (now() - state.startTime);
-    }
-    return state.elapsed;
-  }
+    const dot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
+    const ring = document.getElementById('glow-ring');
+    const display = document.getElementById('timer-display');
+
+    dot.className = 'status-dot ' + status;
+    display.className = 'timer-display ' + status;
+    ring.className = 'glow-ring ' + status;
+
+    if (status === 'running') statusText.textContent = 'RODANDO';
+    else if (status === 'paused') statusText.textContent = 'PAUSADO';
+    else statusText.textContent = 'PARADO';
+  });
 
   function formatTime(ms) {
     if (ms < 0) ms = 0;
@@ -236,31 +228,6 @@
     const hrs = Math.floor(totalSec / 3600);
     return `${String(hrs).padStart(2,'0')}:${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}.${tenths}`;
   }
-
-  function updateUI() {
-    const display = document.getElementById('timer-display');
-    const dot = document.getElementById('status-dot');
-    const statusText = document.getElementById('status-text');
-    const ring = document.getElementById('glow-ring');
-
-    dot.className = 'status-dot ' + state.status;
-    display.className = 'timer-display ' + state.status;
-    ring.className = 'glow-ring ' + state.status;
-
-    if (state.status === 'running') statusText.textContent = 'RODANDO';
-    else if (state.status === 'paused') statusText.textContent = 'PAUSADO';
-    else statusText.textContent = 'PARADO';
-  }
-
-  // Sincroniza o offset a cada 30s para manter precisão
-  setInterval(syncTime, 30000);
-
-  function tick() {
-    document.getElementById('timer-display').textContent = formatTime(getElapsed());
-    requestAnimationFrame(tick);
-  }
-
-  tick();
 </script>
 </body>
 </html>

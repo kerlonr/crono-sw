@@ -5,34 +5,39 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: '*' }
-});
+const io = new Server(server, { cors: { origin: '*' } });
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Endpoint de sincronização de tempo — cliente usa para calcular offset
-app.get('/time', (req, res) => {
-  res.json({ serverTime: Date.now() });
-});
-
-// Estado do cronômetro
-let timerState = {
-  status: 'stopped',   // 'stopped' | 'running' | 'paused'
-  startTime: null,     // timestamp Unix de quando iniciou (ms)
-  elapsed: 0,          // ms acumulados antes do último pause
-};
-
-// Senha do admin (troque se quiser)
 const ADMIN_PASSWORD = 'admin123';
 
+let status = 'stopped';
+let elapsed = 0;
+let startTime = null;
+let interval = null;
+
+function getElapsed() {
+  if (status === 'running') return elapsed + (Date.now() - startTime);
+  return elapsed;
+}
+
+function broadcast() {
+  io.emit('timer:tick', { status, elapsed: getElapsed() });
+}
+
+function startBroadcast() {
+  if (interval) return;
+  interval = setInterval(broadcast, 100);
+}
+
+function stopBroadcast() {
+  clearInterval(interval);
+  interval = null;
+}
+
 io.on('connection', (socket) => {
-  console.log('Cliente conectado:', socket.id);
+  socket.emit('timer:tick', { status, elapsed: getElapsed() });
 
-  // Envia o estado atual para quem acabou de conectar
-  socket.emit('timer:state', timerState);
-
-  // Login admin
   socket.on('admin:login', (password, callback) => {
     if (password === ADMIN_PASSWORD) {
       socket.join('admins');
@@ -42,41 +47,33 @@ io.on('connection', (socket) => {
     }
   });
 
-  // START
   socket.on('timer:start', () => {
     if (!socket.rooms.has('admins')) return;
-    if (timerState.status === 'running') return;
-
-    timerState.startTime = Date.now();
-    timerState.status = 'running';
-    io.emit('timer:state', timerState);
+    if (status === 'running') return;
+    startTime = Date.now();
+    status = 'running';
+    startBroadcast();
   });
 
-  // PAUSE
   socket.on('timer:pause', () => {
     if (!socket.rooms.has('admins')) return;
-    if (timerState.status !== 'running') return;
-
-    timerState.elapsed += Date.now() - timerState.startTime;
-    timerState.startTime = null;
-    timerState.status = 'paused';
-    io.emit('timer:state', timerState);
+    if (status !== 'running') return;
+    elapsed += Date.now() - startTime;
+    startTime = null;
+    status = 'paused';
+    stopBroadcast();
+    broadcast();
   });
 
-  // RESET
   socket.on('timer:reset', () => {
     if (!socket.rooms.has('admins')) return;
-
-    timerState = { status: 'stopped', startTime: null, elapsed: 0 };
-    io.emit('timer:state', timerState);
-  });
-
-  socket.on('disconnect', () => {
-    console.log('Cliente desconectado:', socket.id);
+    elapsed = 0;
+    startTime = null;
+    status = 'stopped';
+    stopBroadcast();
+    broadcast();
   });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`Servidor rodando em http://localhost:${PORT}`);
-});
+server.listen(PORT, () => console.log(`Servidor em http://localhost:${PORT}`));

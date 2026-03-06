@@ -291,35 +291,23 @@
 
 <script>
   const socket = io();
-  let state = { status: 'stopped', startTime: null, elapsed: 0 };
-  let serverOffset = 0; // diferença entre relógio local e servidor
+  let currentElapsed = 0;
+  let currentStatus = 'stopped';
 
-  // Calcula offset antes de qualquer coisa
-  async function syncTime() {
-    const t0 = Date.now();
-    const res = await fetch('/time');
-    const { serverTime } = await res.json();
-    const t1 = Date.now();
-    const latency = (t1 - t0) / 2;
-    serverOffset = serverTime - (t0 + latency);
-  }
-
-  // Tempo local corrigido para bater com o servidor
-  function now() { return Date.now() + serverOffset; }
-
-  socket.on('timer:state', (s) => {
-    state = s;
-    updateUI();
+  // Servidor envia o tempo já calculado a cada 100ms
+  socket.on('timer:tick', ({ status, elapsed }) => {
+    currentElapsed = elapsed;
+    currentStatus = status;
+    document.getElementById('timer-display').textContent = formatTime(elapsed);
+    updateUI(status);
   });
 
-  async function doLogin() {
-    await syncTime(); // sincroniza antes de mostrar o painel
+  function doLogin() {
     const pw = document.getElementById('password-input').value;
     socket.emit('admin:login', pw, (res) => {
       if (res.success) {
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('admin-panel').style.display = 'flex';
-        startRenderLoop();
       } else {
         document.getElementById('login-error').textContent = 'Senha incorreta.';
       }
@@ -334,13 +322,6 @@
   function timerPause() { socket.emit('timer:pause'); }
   function timerReset() { socket.emit('timer:reset'); }
 
-  function getElapsed() {
-    if (state.status === 'running') {
-      return state.elapsed + (now() - state.startTime);
-    }
-    return state.elapsed;
-  }
-
   function formatTime(ms) {
     if (ms < 0) ms = 0;
     const totalTenths = Math.floor(ms / 100);
@@ -352,21 +333,21 @@
     return `${String(hrs).padStart(2,'0')}:${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}.${tenths}`;
   }
 
-  function updateUI() {
+  function updateUI(status) {
     const display = document.getElementById('timer-display');
     const dot = document.getElementById('status-dot');
     const statusText = document.getElementById('status-text');
     const btnStart = document.getElementById('btn-start');
     const btnPause = document.getElementById('btn-pause');
 
-    dot.className = 'status-dot ' + state.status;
-    display.className = 'timer-display ' + state.status;
+    dot.className = 'status-dot ' + status;
+    display.className = 'timer-display ' + status;
 
-    if (state.status === 'running') {
+    if (status === 'running') {
       statusText.textContent = 'RODANDO';
       btnStart.disabled = true;
       btnPause.disabled = false;
-    } else if (state.status === 'paused') {
+    } else if (status === 'paused') {
       statusText.textContent = 'PAUSADO';
       btnStart.disabled = false;
       btnStart.textContent = '▶ Continuar';
@@ -377,14 +358,6 @@
       btnStart.textContent = '▶ Start';
       btnPause.disabled = true;
     }
-  }
-
-  function startRenderLoop() {
-    function tick() {
-      document.getElementById('timer-display').textContent = formatTime(getElapsed());
-      requestAnimationFrame(tick);
-    }
-    tick();
   }
 </script>
 </body>
