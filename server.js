@@ -11,6 +11,11 @@ const io = new Server(server, {
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Endpoint de sincronização de tempo — cliente usa para calcular offset
+app.get('/time', (req, res) => {
+  res.json({ serverTime: Date.now() });
+});
+
 // Estado do cronômetro
 let timerState = {
   status: 'stopped',   // 'stopped' | 'running' | 'paused'

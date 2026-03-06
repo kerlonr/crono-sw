@@ -292,14 +292,28 @@
 <script>
   const socket = io();
   let state = { status: 'stopped', startTime: null, elapsed: 0 };
-  let rafId = null;
+  let serverOffset = 0; // diferença entre relógio local e servidor
+
+  // Calcula offset antes de qualquer coisa
+  async function syncTime() {
+    const t0 = Date.now();
+    const res = await fetch('/time');
+    const { serverTime } = await res.json();
+    const t1 = Date.now();
+    const latency = (t1 - t0) / 2;
+    serverOffset = serverTime - (t0 + latency);
+  }
+
+  // Tempo local corrigido para bater com o servidor
+  function now() { return Date.now() + serverOffset; }
 
   socket.on('timer:state', (s) => {
     state = s;
     updateUI();
   });
 
-  function doLogin() {
+  async function doLogin() {
+    await syncTime(); // sincroniza antes de mostrar o painel
     const pw = document.getElementById('password-input').value;
     socket.emit('admin:login', pw, (res) => {
       if (res.success) {
@@ -322,12 +336,13 @@
 
   function getElapsed() {
     if (state.status === 'running') {
-      return state.elapsed + (Date.now() - state.startTime);
+      return state.elapsed + (now() - state.startTime);
     }
     return state.elapsed;
   }
 
   function formatTime(ms) {
+    if (ms < 0) ms = 0;
     const totalTenths = Math.floor(ms / 100);
     const tenths = totalTenths % 10;
     const totalSec = Math.floor(ms / 1000);
@@ -367,7 +382,7 @@
   function startRenderLoop() {
     function tick() {
       document.getElementById('timer-display').textContent = formatTime(getElapsed());
-      rafId = requestAnimationFrame(tick);
+      requestAnimationFrame(tick);
     }
     tick();
   }

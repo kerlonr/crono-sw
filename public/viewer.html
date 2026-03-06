@@ -192,8 +192,21 @@
 <script>
   const socket = io();
   let state = { status: 'stopped', startTime: null, elapsed: 0 };
+  let serverOffset = 0;
 
-  socket.on('connect', () => {
+  async function syncTime() {
+    const t0 = Date.now();
+    const res = await fetch('/time');
+    const { serverTime } = await res.json();
+    const t1 = Date.now();
+    const latency = (t1 - t0) / 2;
+    serverOffset = serverTime - (t0 + latency);
+  }
+
+  function now() { return Date.now() + serverOffset; }
+
+  socket.on('connect', async () => {
+    await syncTime();
     document.getElementById('status-text').textContent = 'CONECTADO';
   });
 
@@ -208,12 +221,13 @@
 
   function getElapsed() {
     if (state.status === 'running') {
-      return state.elapsed + (Date.now() - state.startTime);
+      return state.elapsed + (now() - state.startTime);
     }
     return state.elapsed;
   }
 
   function formatTime(ms) {
+    if (ms < 0) ms = 0;
     const totalTenths = Math.floor(ms / 100);
     const tenths = totalTenths % 10;
     const totalSec = Math.floor(ms / 1000);
@@ -237,6 +251,9 @@
     else if (state.status === 'paused') statusText.textContent = 'PAUSADO';
     else statusText.textContent = 'PARADO';
   }
+
+  // Sincroniza o offset a cada 30s para manter precisão
+  setInterval(syncTime, 30000);
 
   function tick() {
     document.getElementById('timer-display').textContent = formatTime(getElapsed());
