@@ -20,6 +20,9 @@ const MAX_TIMERS_PER_SESSION = 12;
 // vezes ao longo de uma aula de 80 horas.
 const MIN_ACCRUAL_EVERY_MS = 60 * 1000;
 const MIN_ACCRUAL_ADD_MS = 1000;
+const STATE_FILE = process.env.STATE_FILE || path.join(ROOT_DIR, "logs", "sessions.json");
+const STATE_SAVE_MS =
+  parsePositiveInt(process.env.STATE_SAVE_SECONDS, 5) * 1000;
 const MAX_TIMER_NAME_LENGTH = 24;
 const SESSION_ID_PATTERN = /^[a-f0-9]{8}$/i;
 const ADMIN_TOKEN_PATTERN = /^[a-f0-9]{36}$/i;
@@ -48,6 +51,8 @@ module.exports = {
   SESSION_CLEANUP_MS,
   SESSION_ID_PATTERN,
   SESSION_TTL_MS,
+  STATE_FILE,
+  STATE_SAVE_MS,
   TIMER_ID_PATTERN,
   TRUST_PROXY,
   WEBHOOK_DEPLOY_BRANCH,

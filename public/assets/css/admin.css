@@ -2504,3 +2504,229 @@ body::after {
     padding: 14px;
   }
 }
+
+/* ------------------------------------------------ fluxo de ajuste rapido */
+
+/* Titulo e modo dividem a linha quando ha largura; empilham quando nao ha. */
+.config-top {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 14px;
+}
+
+/* Cada tarefa (definir duracao, informar o ja corrido, regra de ganho) fica
+   em seu proprio cartao, com o botao principal junto do campo. Antes eles
+   corriam soltos e era preciso caçar o botao certo. */
+.config-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--glass-line);
+  border-radius: 16px;
+  background: var(--glass-strong);
+}
+
+.time-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.time-row .time-inputs {
+  flex: 1 1 200px;
+}
+
+.steppers {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.steppers button {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--glass-line);
+  border-radius: 10px;
+  background: var(--glass);
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-family: "Share Tech Mono", monospace;
+  font-size: 13px;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+.steppers button:hover {
+  background: var(--glass-strong);
+  color: var(--ink);
+}
+
+.clock-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border: 1px dashed var(--glass-line);
+  border-radius: 12px;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.clock-row input[type="time"] {
+  padding: 8px 10px;
+  border: 1px solid var(--glass-line);
+  border-radius: 10px;
+  background: var(--glass-strong);
+  color: var(--ink);
+  font-family: "Share Tech Mono", monospace;
+  font-size: 14px;
+}
+
+.clock-row .field-hint {
+  flex-basis: 100%;
+}
+
+/* O caminho mais comum ganha destaque: definir e ja iniciar. */
+.btn-go {
+  border-color: transparent !important;
+  background: linear-gradient(120deg, var(--accent), var(--accent2)) !important;
+  color: #04222c !important;
+  font-weight: 900;
+}
+
+.setter-actions {
+  flex-wrap: wrap;
+}
+
+.setter-actions .btn-set {
+  flex: 1 1 auto;
+}
+
+
+/* Estado desabilitado visivel. Sem isso o botao mais chamativo da tela
+   ("Aplicar e iniciar") continuava parecendo clicavel com o cronometro
+   rodando, e o clique simplesmente nao fazia nada. */
+.btn-set:disabled,
+.btn-go:disabled,
+.btn-danger:disabled,
+.btn-d:disabled,
+.btn-mini:disabled,
+.steppers button:disabled,
+.accrual-toggle input:disabled {
+  cursor: not-allowed;
+  filter: saturate(0.35);
+  opacity: 0.4;
+}
+
+/* Alvos de toque. O "Ajustar" tinha 20px de altura e e um dos controles mais
+   usados; no celular virava uma loteria. Minimo de 40px em tudo que se
+   clica dentro do painel. */
+.config-toggle {
+  min-height: 40px;
+  padding: 10px 18px;
+}
+
+.timer-mini .config-toggle {
+  min-height: 38px;
+  padding: 8px 12px;
+}
+
+.config-close {
+  width: 38px;
+  height: 38px;
+}
+
+.segmented button {
+  min-height: 42px;
+}
+
+.accrual-sentence input[type="number"],
+.clock-row input[type="time"],
+.clock-row .btn-set {
+  min-height: 40px;
+}
+
+.accrual-toggle {
+  min-height: 40px;
+}
+
+.accrual-toggle input {
+  width: 20px;
+  height: 20px;
+}
+
+/* Quem decide o empilhamento e a largura do PAINEL, nao a da janela: o painel
+   fica dentro de um bloco secundario e pode estar estreito com a janela larga.
+   Foi exatamente esse engano que deixou os campos de tempo quebrando ao meio,
+   com um ":" orfao e o SEG numa linha sozinha. */
+@supports (container-type: inline-size) {
+  .timer-config {
+    container-type: inline-size;
+    container-name: cfg;
+  }
+
+  @container cfg (max-width: 520px) {
+    .time-row .time-inputs {
+      flex-basis: 100%;
+    }
+
+    .time-inputs {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .time-sep {
+      display: none;
+    }
+
+    .time-input-group {
+      min-width: 0;
+    }
+
+    .time-input-group input {
+      width: 100%;
+    }
+
+    .steppers {
+      width: 100%;
+    }
+
+    .steppers button {
+      flex: 1 1 0;
+      padding: 0 6px;
+    }
+
+    .setter-actions .btn-set {
+      flex-basis: 100%;
+    }
+
+    .config-actions .btn-set,
+    .config-actions .btn-danger {
+      flex: 1 1 100%;
+    }
+  }
+}
+
+/* Sem suporte a container query, cai no criterio de janela. */
+@supports not (container-type: inline-size) {
+  @media (max-width: 560px) {
+    .time-inputs {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .time-sep {
+      display: none;
+    }
+
+    .setter-actions .btn-set {
+      flex-basis: 100%;
+    }
+  }
+}

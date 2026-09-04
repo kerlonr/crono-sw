@@ -35,6 +35,7 @@ module.exports = {
   pauseTimer,
   resetAccrual,
   resetTimer,
+  seekTimer,
   sanitizeDirection,
   sanitizeTimerName,
   startTimer,
@@ -196,6 +197,23 @@ function pauseTimer(timer) {
  */
 function resetTimer(timer) {
   resetAccrual(timer);
+  timer.elapsed = getStartElapsed(timer);
+  timer.startTime = null;
+  timer.status = "stopped";
+}
+
+/**
+ * Reposiciona a contagem no ponto de partida informado, PRESERVANDO o tempo
+ * ja ganho por regra.
+ *
+ * Informar quanto de um intervalo ja foi consumido nao pode apagar os minutos
+ * que ele acumulou - sao coisas diferentes. So o Reset descarta o ganho.
+ *
+ * @param {object} timer
+ * @param {number} offsetMs
+ */
+function seekTimer(timer, offsetMs) {
+  timer.offsetMs = offsetMs;
   timer.elapsed = getStartElapsed(timer);
   timer.startTime = null;
   timer.status = "stopped";

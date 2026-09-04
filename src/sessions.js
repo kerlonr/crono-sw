@@ -20,6 +20,7 @@ const {
   resetAccrual,
   resetTimer,
   sanitizeDirection,
+  seekTimer,
   sanitizeTimerName,
   startTimer,
 } = require("./timers");
@@ -49,6 +50,8 @@ function createSessionStore({
     addTimer,
     applyAccruals,
     broadcastSession,
+    exportSessions,
+    importSessions,
     buildSessionState,
     bulkTimerAction,
     cleanupExpiredSessions,
@@ -243,6 +246,107 @@ function createSessionStore({
     }
   }
 
+  /** Estado serializavel das sessoes, para o snapshot em disco. */
+  function exportSessions() {
+    return Array.from(sessions.values())
+      .filter((session) => !isSessionExpired(session))
+      .map((session) => ({
+        id: session.id,
+        adminToken: session.adminToken,
+        primaryTimerId: session.primaryTimerId,
+        createdAt: session.createdAt,
+        lastAccessAt: session.lastAccessAt,
+        timers: session.timers.map((timer) => ({
+          id: timer.id,
+          name: timer.name,
+          direction: timer.direction,
+          status: timer.status,
+          elapsed: timer.elapsed,
+          startTime: timer.startTime,
+          totalTime: timer.totalTime,
+          offsetMs: timer.offsetMs,
+          bonusMs: timer.bonusMs,
+          accrual: timer.accrual,
+        })),
+      }));
+  }
+
+  /**
+   * Recarrega sessoes do snapshot. Cronometros que estavam rodando voltam
+   * rodando com o `startTime` original, entao o tempo em que o processo ficou
+   * fora do ar conta - a aula nao parou por causa do reinicio.
+   *
+   * @returns {number} quantas sessoes foram restauradas.
+   */
+  function importSessions(raw) {
+    if (!Array.isArray(raw)) return 0;
+
+    let restauradas = 0;
+
+    for (const item of raw) {
+      if (!item || !isValidSessionId(item.id) || sessions.has(item.id)) continue;
+      if (!isValidAdminToken(item.adminToken)) continue;
+      if (!Array.isArray(item.timers)) continue;
+
+      const timers = item.timers
+        .filter((timer) => timer && isValidTimerId(timer.id))
+        .map((timer) => ({
+          id: timer.id,
+          name: sanitizeTimerName(timer.name, maxTimerNameLength),
+          direction: sanitizeDirection(timer.direction),
+          status: ["stopped", "running", "paused", "finished"].includes(
+            timer.status,
+          )
+            ? timer.status
+            : "stopped",
+          elapsed: Math.max(0, Number(timer.elapsed) || 0),
+          startTime: Number.isFinite(timer.startTime) ? timer.startTime : null,
+          totalTime: sanitizeTimerMs(timer.totalTime) ?? defaultTimerMs,
+          offsetMs: Math.max(0, Number(timer.offsetMs) || 0),
+          bonusMs: Math.max(0, Number(timer.bonusMs) || 0),
+          accrual: null,
+        }))
+        .slice(0, maxTimersPerSession);
+
+      if (!timers.length) continue;
+
+      const session = {
+        id: item.id,
+        adminToken: item.adminToken,
+        timers,
+        primaryTimerId: timers.some((t) => t.id === item.primaryTimerId)
+          ? item.primaryTimerId
+          : timers[0].id,
+        interval: null,
+        createdAt: Number(item.createdAt) || Date.now(),
+        lastAccessAt: Date.now(),
+      };
+
+      sessions.set(session.id, session);
+
+      // As regras entram depois, com a sessao ja montada, para a validacao
+      // conseguir conferir que a fonte existe.
+      for (const timer of item.timers) {
+        if (!timer?.accrual) continue;
+        const alvo = timers.find((t) => t.id === timer.id);
+        if (!alvo) continue;
+
+        alvo.accrual = sanitizeAccrual(session, alvo.id, timer.accrual);
+        if (alvo.accrual) {
+          alvo.accrual.grantedCount = Math.max(
+            0,
+            Math.trunc(Number(timer.accrual.grantedCount) || 0),
+          );
+        }
+      }
+
+      syncSessionInterval(session);
+      restauradas += 1;
+    }
+
+    return restauradas;
+  }
+
   // -------------------------------------------------------------- broadcast
 
   function buildSessionState(session) {
@@ -369,6 +473,10 @@ function createSessionStore({
       () => broadcastSession(sessionId),
       TICK_INTERVAL_MS,
     );
+    // O tick sozinho nao deve segurar o processo aberto: em producao quem
+    // mantem o app vivo e o socket do servidor. Sem isso um tick esquecido
+    // impede o encerramento (foi o que travou a suite de testes).
+    session.interval.unref?.();
   }
 
   function clearSessionInterval(session) {
@@ -475,8 +583,7 @@ function createSessionStore({
     if (offsetMs !== undefined && timer.status !== "running") {
       const safeOffset = sanitizeOffsetMs(timer, offsetMs);
       if (safeOffset !== null) {
-        timer.offsetMs = safeOffset;
-        resetTimer(timer);
+        seekTimer(timer, safeOffset);
         changed = true;
       }
     }

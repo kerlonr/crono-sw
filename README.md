@@ -189,9 +189,19 @@ verde no começo, amarelo abaixo de 40%, vermelho abaixo de 20% e piscando abaix
 
 ### Ponto de partida
 
-`Começar em` faz o cronômetro partir de um ponto em vez do zero — útil quando a contagem já está em
-andamento (por exemplo, a aula já corre há 05:15:00). O ponto fica guardado à parte do decorrido, então
-`Reset` volta para ele, não para zero.
+O mesmo campo serve aos dois modos, mudando de nome conforme o sentido: **Já decorrido** no progressivo
+(quanto já correu) e **Já consumido** no regressivo (quanto já foi gasto). Há também `ou começou às`, que
+calcula o valor a partir de um horário — se o horário ainda não chegou hoje, entende-se que foi ontem.
+
+O ponto fica guardado à parte do decorrido, então `Reset` volta para ele, não para zero. Informar consumo
+**não** descarta o tempo ganho por regra; só o `Reset` faz isso.
+
+### Persistência
+
+As sessões são gravadas em disco a cada 5 segundos e no desligamento (`STATE_FILE`, `STATE_SAVE_SECONDS`),
+e recarregadas no boot. Cronômetros que estavam rodando voltam rodando com o `startTime` original, então o
+tempo em que o processo ficou fora conta — a aula não parou porque o servidor reiniciou. O link do admin
+continua valendo, porque o token é preservado.
 
 ### Ganhar tempo automaticamente
 
@@ -234,6 +244,8 @@ As variáveis atuais são:
 | `DEPLOYER_TIMEOUT_MS` | não | Timeout para disparar o serviço de deploy |
 | `SESSION_TTL_MINUTES` | não | Tempo de vida das sessões em memória (padrão 1440, ou seja 24h) |
 | `SESSION_CLEANUP_MINUTES` | não | Intervalo de limpeza das sessões expiradas |
+| `STATE_FILE` | não | Arquivo do snapshot das sessões (padrão `logs/sessions.json`) |
+| `STATE_SAVE_SECONDS` | não | Intervalo entre gravações do snapshot (padrão 5) |
 | `TRUST_PROXY` | não | Ativa `trust proxy` no Express |
 
 ## Eventos de Socket
@@ -303,7 +315,7 @@ O projeto já inclui algumas medidas de endurecimento:
 
 Alguns pontos importantes para considerar antes de produção mais séria:
 
-- as sessões ficam apenas em memória e somem ao reiniciar o processo
+- as sessões ficam em memória, com snapshot em disco; um disco perdido leva as sessões junto
 - uma sessão sem nenhum cliente conectado expira pelo TTL; com alguém conectado, ela é mantida viva
 - os modelos de cronômetro ficam em `localStorage` no navegador do admin
 - não existe banco de dados

@@ -655,6 +655,107 @@ describe("regra de ganho de tempo", () => {
   });
 });
 
+describe("consumo e persistencia", () => {
+  const HOUR = 60 * 60 * 1000;
+  const MIN = 60 * 1000;
+
+  it("informar consumo nao apaga o tempo ja ganho", () => {
+    const { store } = createStore();
+    const session = store.createSession();
+    const aula = session.timers[0];
+    store.updateTimer(session, aula.id, { name: "Aula", totalTime: 80 * HOUR });
+
+    const intervalo = store.addTimer(session, {
+      name: "Intervalo",
+      totalTime: 20 * MIN,
+    });
+    store.updateTimer(session, intervalo.id, {
+      accrual: { sourceTimerId: aula.id, everyMs: HOUR, addMs: 5 * MIN },
+    });
+
+    aula.status = "running";
+    aula.startTime = Date.now() - 3 * HOUR;
+    store.applyAccruals(session);
+    assert.equal(intervalo.bonusMs, 15 * MIN);
+
+    store.updateTimer(session, intervalo.id, { offsetMs: 5 * MIN });
+
+    assert.equal(intervalo.bonusMs, 15 * MIN, "o bonus tem que sobreviver");
+    assert.equal(intervalo.elapsed, 5 * MIN);
+    assert.equal(store.getRemaining(intervalo), 30 * MIN);
+  });
+
+  it("Reset continua descartando o bonus, ao contrario do consumo", () => {
+    const { store } = createStore();
+    const session = store.createSession();
+    const aula = session.timers[0];
+    const intervalo = store.addTimer(session, { totalTime: 20 * MIN });
+    store.updateTimer(session, intervalo.id, {
+      accrual: { sourceTimerId: aula.id, everyMs: MIN, addMs: 5 * MIN },
+    });
+
+    aula.status = "running";
+    aula.startTime = Date.now() - 2 * MIN;
+    store.applyAccruals(session);
+    assert.ok(intervalo.bonusMs > 0);
+
+    store.resetSessionTimer(session, intervalo.id);
+    assert.equal(intervalo.bonusMs, 0);
+  });
+
+  it("exporta e reimporta a sessao inteira", () => {
+    const { store } = createStore();
+    const session = store.createSession();
+    const aula = session.timers[0];
+    store.updateTimer(session, aula.id, {
+      name: "Aula",
+      totalTime: 80 * HOUR,
+      direction: "down",
+    });
+    const intervalo = store.addTimer(session, {
+      name: "Intervalo",
+      totalTime: 20 * MIN,
+    });
+    store.updateTimer(session, intervalo.id, {
+      offsetMs: 3 * MIN,
+      accrual: { sourceTimerId: aula.id, everyMs: HOUR, addMs: 5 * MIN },
+    });
+    store.startSessionTimer(session, aula.id);
+
+    const snapshot = JSON.parse(JSON.stringify(store.exportSessions()));
+    stopSession(store, session);
+
+    // Um processo novo, comecando do zero.
+    const { store: outro } = createStore();
+    assert.equal(outro.importSessions(snapshot), 1);
+
+    const restaurada = outro.getSession(session.id);
+    assert.ok(restaurada, "a sessao precisa voltar");
+    assert.equal(restaurada.adminToken, session.adminToken, "o link do admin segue valendo");
+    assert.equal(restaurada.timers.length, 2);
+    assert.equal(restaurada.primaryTimerId, session.primaryTimerId);
+
+    const aula2 = restaurada.timers[0];
+    const int2 = restaurada.timers[1];
+    assert.equal(aula2.name, "Aula");
+    assert.equal(aula2.totalTime, 80 * HOUR);
+    assert.equal(aula2.status, "running", "quem estava rodando volta rodando");
+    assert.equal(int2.offsetMs, 3 * MIN);
+    assert.equal(int2.accrual.sourceTimerId, aula.id);
+    assert.equal(int2.accrual.addMs, 5 * MIN);
+    assert.ok(restaurada.interval, "o tick precisa religar sozinho");
+
+    stopSession(outro, restaurada);
+  });
+
+  it("ignora snapshot corrompido em vez de derrubar o processo", () => {
+    const { store } = createStore();
+    assert.equal(store.importSessions(null), 0);
+    assert.equal(store.importSessions([{ id: "nao-e-id" }]), 0);
+    assert.equal(store.importSessions([{ id: "aaaaaaaa", adminToken: "x" }]), 0);
+  });
+});
+
 describe("duracao longa", () => {
   const HOUR = 60 * 60 * 1000;
 

@@ -33,7 +33,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;600;900&display=swap"
     rel="stylesheet" />
   <script src="/socket.io/socket.io.js"></script>
-  <link rel="stylesheet" href="/assets/css/admin.css?v=20260904f" />
+  <link rel="stylesheet" href="/assets/css/admin.css?v=20260905e" />
 </head>
 
 <body>
@@ -101,100 +101,129 @@
       <span class="section-label" id="timer-config-title">Ajustes</span>
       <button class="config-close" id="btn-close-config" type="button" aria-label="Fechar ajustes">✕</button>
     </div>
-          <label class="field">
-            <span class="field-label">Título</span>
-            <input type="text" id="cfg-name" maxlength="24" placeholder="Ex.: Aula, Break, Decorrido" />
-          </label>
 
-          <div class="field">
-            <span class="field-label">Modo</span>
-            <div class="segmented" role="group" aria-label="Modo de contagem">
-              <button type="button" data-direction="down" aria-pressed="true">Regressivo</button>
-              <button type="button" data-direction="up" aria-pressed="false">Progressivo</button>
-            </div>
-            <span class="field-hint" id="cfg-direction-hint"></span>
-          </div>
+    <div class="config-top">
+      <label class="field">
+        <span class="field-label">Título</span>
+        <input type="text" id="cfg-name" maxlength="24" placeholder="Ex.: Aula, Break, Decorrido" />
+      </label>
 
-          <div class="field">
-            <span class="field-label">Tempo</span>
-            <div class="time-inputs">
-              <div class="time-input-group">
-                <label for="cfg-h">h</label>
-                <input type="number" id="cfg-h" min="0" max="100" value="0" inputmode="numeric" />
-              </div>
-              <div class="time-sep">:</div>
-              <div class="time-input-group">
-                <label for="cfg-m">min</label>
-                <input type="number" id="cfg-m" min="0" max="59" value="5" inputmode="numeric" />
-              </div>
-              <div class="time-sep">:</div>
-              <div class="time-input-group">
-                <label for="cfg-s">seg</label>
-                <input type="number" id="cfg-s" min="0" max="59" value="0" inputmode="numeric" />
-              </div>
-            </div>
-            <div class="setter-actions">
-              <button class="btn-set" id="btn-apply-time" type="button">Aplicar tempo</button>
-              <button class="btn-set secondary" id="btn-save-model" type="button">Salvar como modelo</button>
-            </div>
-            <span class="field-hint" id="cfg-time-hint"></span>
-          </div>
+      <div class="field">
+        <span class="field-label">Modo</span>
+        <div class="segmented" role="group" aria-label="Modo de contagem">
+          <button type="button" data-direction="down" aria-pressed="true">Regressivo</button>
+          <button type="button" data-direction="up" aria-pressed="false">Progressivo</button>
+        </div>
+      </div>
+    </div>
+    <span class="field-hint" id="cfg-direction-hint"></span>
 
-          <div class="field">
-            <span class="field-label">Começar em</span>
-            <div class="time-inputs">
-              <div class="time-input-group">
-                <label for="cfg-off-h">h</label>
-                <input type="number" id="cfg-off-h" min="0" max="100" value="0" inputmode="numeric" />
-              </div>
-              <div class="time-sep">:</div>
-              <div class="time-input-group">
-                <label for="cfg-off-m">min</label>
-                <input type="number" id="cfg-off-m" min="0" max="59" value="0" inputmode="numeric" />
-              </div>
-              <div class="time-sep">:</div>
-              <div class="time-input-group">
-                <label for="cfg-off-s">seg</label>
-                <input type="number" id="cfg-off-s" min="0" max="59" value="0" inputmode="numeric" />
-              </div>
-            </div>
-            <div class="setter-actions">
-              <button class="btn-set" id="btn-apply-offset" type="button">Aplicar início</button>
-              <button class="btn-set secondary" id="btn-clear-offset" type="button">Voltar a zero</button>
-            </div>
-            <span class="field-hint" id="cfg-offset-hint"></span>
+    <section class="config-card">
+      <span class="field-label" id="cfg-time-label">Duração</span>
+      <div class="time-row">
+        <div class="time-inputs">
+          <div class="time-input-group">
+            <label for="cfg-h">h</label>
+            <input type="number" id="cfg-h" min="0" max="100" value="0" inputmode="numeric" />
           </div>
+          <div class="time-sep">:</div>
+          <div class="time-input-group">
+            <label for="cfg-m">min</label>
+            <input type="number" id="cfg-m" min="0" max="59" value="5" inputmode="numeric" />
+          </div>
+          <div class="time-sep">:</div>
+          <div class="time-input-group">
+            <label for="cfg-s">seg</label>
+            <input type="number" id="cfg-s" min="0" max="59" value="0" inputmode="numeric" />
+          </div>
+        </div>
+        <div class="steppers" role="group" aria-label="Ajuste rápido da duração">
+          <button type="button" data-step="-3600000">−1h</button>
+          <button type="button" data-step="-300000">−5m</button>
+          <button type="button" data-step="300000">+5m</button>
+          <button type="button" data-step="3600000">+1h</button>
+        </div>
+      </div>
+      <div class="setter-actions">
+        <button class="btn-set btn-go" id="btn-apply-start" type="button">Aplicar e iniciar</button>
+        <button class="btn-set" id="btn-apply-time" type="button">Só aplicar</button>
+        <button class="btn-set secondary" id="btn-save-model" type="button">Salvar modelo</button>
+      </div>
+      <span class="field-hint" id="cfg-time-hint"></span>
+    </section>
 
-          <div class="field">
-            <span class="field-label">Ganhar tempo automaticamente</span>
-            <label class="accrual-toggle">
-              <input type="checkbox" id="accrual-enabled" />
-              <span>Somar tempo conforme outro cronômetro avança</span>
-            </label>
-            <div class="accrual-sentence" id="accrual-sentence" data-enabled="false">
-              <span>A cada</span>
-              <input type="number" id="accrual-every-h" min="0" max="99" value="1" inputmode="numeric"
-                aria-label="Horas do intervalo da regra" />
-              <span>h</span>
-              <input type="number" id="accrual-every-m" min="0" max="59" value="0" inputmode="numeric"
-                aria-label="Minutos do intervalo da regra" />
-              <span>min de</span>
-              <select id="accrual-source" aria-label="Cronômetro que dispara a regra"></select>
-              <span>, somar</span>
-              <input type="number" id="accrual-add-m" min="0" max="599" value="5" inputmode="numeric"
-                aria-label="Minutos a somar" />
-              <span>min</span>
-            </div>
-            <span class="accrual-status" id="accrual-status"></span>
+    <section class="config-card">
+      <span class="field-label" id="cfg-offset-label">Já decorrido</span>
+      <div class="time-row">
+        <div class="time-inputs">
+          <div class="time-input-group">
+            <label for="cfg-off-h">h</label>
+            <input type="number" id="cfg-off-h" min="0" max="100" value="0" inputmode="numeric" />
           </div>
+          <div class="time-sep">:</div>
+          <div class="time-input-group">
+            <label for="cfg-off-m">min</label>
+            <input type="number" id="cfg-off-m" min="0" max="59" value="0" inputmode="numeric" />
+          </div>
+          <div class="time-sep">:</div>
+          <div class="time-input-group">
+            <label for="cfg-off-s">seg</label>
+            <input type="number" id="cfg-off-s" min="0" max="59" value="0" inputmode="numeric" />
+          </div>
+        </div>
+        <div class="steppers" role="group" aria-label="Ajuste rápido">
+          <button type="button" data-off-step="-600000">−10m</button>
+          <button type="button" data-off-step="-300000">−5m</button>
+          <button type="button" data-off-step="300000">+5m</button>
+          <button type="button" data-off-step="600000">+10m</button>
+        </div>
+      </div>
 
-          <div class="config-actions">
-            <button class="btn-set" id="btn-set-primary" type="button">Destacar no viewer</button>
-            <button class="btn-set secondary" id="btn-move-up" type="button">Mover ↑</button>
-            <button class="btn-set secondary" id="btn-move-down" type="button">Mover ↓</button>
-            <button class="btn-danger" id="btn-remove-timer" type="button">Remover</button>
-          </div>
+      <div class="clock-row" id="clock-row">
+        <span id="clock-label">ou começou às</span>
+        <input type="time" id="cfg-clock" aria-label="Horário em que começou" />
+        <button class="btn-set secondary" id="btn-from-clock" type="button">Calcular</button>
+        <span class="field-hint" id="clock-hint"></span>
+      </div>
+
+      <div class="setter-actions">
+        <button class="btn-set btn-go" id="btn-offset-start" type="button">Aplicar e iniciar</button>
+        <button class="btn-set" id="btn-apply-offset" type="button">Só aplicar</button>
+        <button class="btn-set secondary" id="btn-clear-offset" type="button">Zerar</button>
+      </div>
+      <span class="field-hint" id="cfg-offset-hint"></span>
+    </section>
+
+    <section class="config-card">
+      <label class="accrual-toggle">
+        <input type="checkbox" id="accrual-enabled" />
+        <span>Ganhar tempo conforme outro cronômetro avança</span>
+      </label>
+      <div class="accrual-sentence" id="accrual-sentence" data-enabled="false">
+        <span>A cada</span>
+        <input type="number" id="accrual-every-h" min="0" max="99" value="1" inputmode="numeric"
+          aria-label="Horas do intervalo da regra" />
+        <span>h</span>
+        <input type="number" id="accrual-every-m" min="0" max="59" value="0" inputmode="numeric"
+          aria-label="Minutos do intervalo da regra" />
+        <span>min de</span>
+        <select id="accrual-source" aria-label="Cronômetro que dispara a regra"></select>
+        <span>, somar</span>
+        <input type="number" id="accrual-add-m" min="0" max="599" value="5" inputmode="numeric"
+          aria-label="Minutos a somar" />
+        <span>min</span>
+      </div>
+      <span class="accrual-status" id="accrual-status"></span>
+    </section>
+
+    <div class="config-actions">
+      <button class="btn-set" id="btn-set-primary" type="button">Destacar no viewer</button>
+      <button class="btn-set secondary" id="btn-move-up" type="button">Mover ↑</button>
+      <button class="btn-set secondary" id="btn-move-down" type="button">Mover ↓</button>
+      <button class="btn-danger" id="btn-remove-timer" type="button">Remover</button>
+    </div>
   </div>
+
 
   <div class="modal-overlay" id="modal-overlay">
     <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
@@ -251,7 +280,7 @@
 
   <script src="/assets/js/crono-utils.js?v=20260904d"></script>
   <script src="/assets/js/finish-sound.js?v=20260429b"></script>
-  <script src="/assets/js/admin.js?v=20260904f"></script>
+  <script src="/assets/js/admin.js?v=20260905a"></script>
 </body>
 
 </html>

@@ -22,6 +22,7 @@ const {
   parseWebhookPayload,
   tokensMatch,
 } = require("./src/security");
+const { createSnapshotStore } = require("./src/persistence");
 const { createSessionStore } = require("./src/sessions");
 
 const app = express();
@@ -54,6 +55,30 @@ const sessionStore = createSessionStore({
   sessionTtlMs: config.SESSION_TTL_MS,
   timerIdPattern: config.TIMER_ID_PATTERN,
 });
+
+const snapshotStore = createSnapshotStore({
+  filePath: config.STATE_FILE,
+  intervalMs: config.STATE_SAVE_MS,
+  logEvent,
+});
+
+const restauradas = sessionStore.importSessions(snapshotStore.load());
+if (restauradas) {
+  logEvent("sessions_restored", { sessions: restauradas });
+}
+
+snapshotStore.start(sessionStore.exportSessions);
+
+// Grava uma ultima vez ao desligar, para nao perder os segundos entre o
+// ultimo snapshot periodico e o encerramento.
+for (const sinal of ["SIGINT", "SIGTERM"]) {
+  process.once(sinal, () => {
+    snapshotStore.stop();
+    snapshotStore.save(sessionStore.exportSessions());
+    logEvent("server_stopping", { signal: sinal });
+    process.exit(0);
+  });
+}
 
 const cspDirectives = buildCspDirectives(
   process.env.NODE_ENV,

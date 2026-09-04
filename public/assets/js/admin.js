@@ -77,7 +77,16 @@
     cfgH: el("cfg-h"),
     cfgM: el("cfg-m"),
     cfgS: el("cfg-s"),
+    cfgTimeLabel: el("cfg-time-label"),
     cfgTimeHint: el("cfg-time-hint"),
+    applyStart: el("btn-apply-start"),
+    offsetStart: el("btn-offset-start"),
+    cfgOffsetLabel: el("cfg-offset-label"),
+    clockRow: el("clock-row"),
+    clockLabel: el("clock-label"),
+    clockHint: el("clock-hint"),
+    cfgClock: el("cfg-clock"),
+    fromClock: el("btn-from-clock"),
     cfgOffH: el("cfg-off-h"),
     cfgOffM: el("cfg-off-m"),
     cfgOffS: el("cfg-off-s"),
@@ -188,9 +197,29 @@
       emitUpdate({ direction: button.dataset.direction });
     });
 
-    ui.applyTime?.addEventListener("click", applyTime);
-    ui.applyOffset?.addEventListener("click", () => applyOffset(readOffsetMs()));
-    ui.clearOffset?.addEventListener("click", () => applyOffset(0));
+    ui.applyTime?.addEventListener("click", () => applyTime(false));
+    ui.applyStart?.addEventListener("click", () => applyTime(true));
+    ui.applyOffset?.addEventListener("click", () => applyOffset(readOffsetMs(), false));
+    ui.offsetStart?.addEventListener("click", () => applyOffset(readOffsetMs(), true));
+    ui.clearOffset?.addEventListener("click", () => applyOffset(0, false));
+    ui.fromClock?.addEventListener("click", fillFromClock);
+
+    // Ajuste rapido: mexer nos campos de hora um a um para somar 5 minutos e
+    // o tipo de atrito que faz a tela parecer ruim de usar.
+    ui.config?.addEventListener("click", (event) => {
+      const passo = event.target.closest("[data-step], [data-off-step]");
+      if (!passo) return;
+
+      const paraDuracao = passo.hasAttribute("data-step");
+      const delta = Number(
+        paraDuracao ? passo.dataset.step : passo.dataset.offStep,
+      );
+      const atual = paraDuracao ? readTimeMs() : readOffsetMs();
+      const alvo = Math.max(0, atual + delta);
+
+      if (paraDuracao) fillTimeInputs(alvo);
+      else fillOffsetInputs(alvo);
+    });
     ui.saveModel?.addEventListener("click", saveModelFromSelected);
     ui.setPrimary?.addEventListener("click", () => {
       if (selectedTimerId) socket.emit("timer:setPrimary", selectedTimerId);
@@ -397,11 +426,35 @@
     if (selectedTimerId) socket.emit("timer:update", selectedTimerId, payload);
   }
 
-  function applyTime() {
-    const hours = readNumber(ui.cfgH, 0, MAX_TIMER_HOURS);
-    const minutes = readNumber(ui.cfgM, 0, 59);
-    const seconds = readNumber(ui.cfgS, 0, 59);
-    const ms = (hours * 3600 + minutes * 60 + seconds) * 1000;
+  function readTimeMs() {
+    return (
+      (readNumber(ui.cfgH, 0, MAX_TIMER_HOURS) * 3600 +
+        readNumber(ui.cfgM, 0, 59) * 60 +
+        readNumber(ui.cfgS, 0, 59)) *
+      1000
+    );
+  }
+
+  function fillTimeInputs(ms) {
+    const { hours, minutes, seconds } = splitDuration(ms);
+    ui.cfgH.value = String(hours);
+    ui.cfgM.value = String(minutes);
+    ui.cfgS.value = String(seconds);
+  }
+
+  function fillOffsetInputs(ms) {
+    const { hours, minutes, seconds } = splitDuration(ms);
+    ui.cfgOffH.value = String(hours);
+    ui.cfgOffM.value = String(minutes);
+    ui.cfgOffS.value = String(seconds);
+  }
+
+  /**
+   * @param {boolean} iniciar tambem da Start, poupando o passo extra que era
+   * a reclamacao principal: definir o tempo e sair procurando o botao.
+   */
+  function applyTime(iniciar) {
+    const ms = readTimeMs();
 
     if (ms < 1000 || ms > MAX_TIMER_MS) {
       return showFeedback(
@@ -411,7 +464,37 @@
     }
 
     emitUpdate({ totalTime: ms });
-    showFeedback("Tempo aplicado.", "success");
+    if (iniciar) startSelected();
+    showFeedback(
+      iniciar ? "Tempo aplicado e cronômetro iniciado." : "Tempo aplicado.",
+      "success",
+    );
+  }
+
+  function startSelected() {
+    if (selectedTimerId) socket.emit("timer:start", selectedTimerId);
+  }
+
+  /**
+   * Converte o horario informado em quanto ja correu ate agora. Se o horario
+   * ainda nao chegou hoje, entende-se que foi ontem.
+   */
+  function fillFromClock() {
+    const valor = ui.cfgClock?.value;
+    if (!valor) {
+      return showFeedback("Informe o horário em que começou.", "error");
+    }
+
+    const [horas, minutos] = valor.split(":").map(Number);
+    const inicio = new Date();
+    inicio.setHours(horas, minutos, 0, 0);
+    if (inicio.getTime() > Date.now()) {
+      inicio.setDate(inicio.getDate() - 1);
+    }
+
+    const decorrido = Date.now() - inicio.getTime();
+    fillOffsetInputs(decorrido);
+    ui.clockHint.textContent = `Dá ${formatTime(decorrido)} até agora.`;
   }
 
   function readOffsetMs() {
@@ -423,20 +506,25 @@
     );
   }
 
-  function applyOffset(ms) {
+  function applyOffset(ms, iniciar) {
     const timer = findTimer(selectedTimerId);
     if (!timer) return;
 
     if (ms > timer.totalTime - 1000) {
       return showFeedback(
-        `O início precisa ser menor que ${formatTime(timer.totalTime)}.`,
+        `O valor precisa ser menor que ${formatTime(timer.totalTime)}.`,
         "error",
       );
     }
 
     emitUpdate({ offsetMs: ms });
+    if (iniciar) startSelected();
+
+    const rotulo = timer.direction === "up" ? "Decorrido" : "Consumido";
     showFeedback(
-      ms > 0 ? `Começa em ${formatTime(ms)}.` : "Início voltou para zero.",
+      ms > 0
+        ? `${rotulo} definido em ${formatTime(ms)}${iniciar ? " e iniciado" : ""}.`
+        : "Voltou para zero.",
       "success",
     );
   }
@@ -534,15 +622,9 @@
       );
     }
 
-    const { hours, minutes, seconds } = splitDuration(timer.baseTotalTime);
-    ui.cfgH.value = String(hours);
-    ui.cfgM.value = String(minutes);
-    ui.cfgS.value = String(seconds);
-
-    const inicio = splitDuration(timer.offsetMs);
-    ui.cfgOffH.value = String(inicio.hours);
-    ui.cfgOffM.value = String(inicio.minutes);
-    ui.cfgOffS.value = String(inicio.seconds);
+    fillTimeInputs(timer.baseTotalTime);
+    fillOffsetInputs(timer.offsetMs);
+    if (ui.clockHint) ui.clockHint.textContent = "";
 
     fillAccrualForm(timer);
   }
@@ -583,23 +665,40 @@
     const isPrimary = timer.id === state.primaryTimerId;
     const running = timer.status === "running";
 
-    ui.cfgDirectionHint.textContent =
-      timer.direction === "up"
-        ? "Mostra quanto já passou; o tempo abaixo é a meta."
-        : "Mostra quanto falta; o tempo abaixo é a duração.";
+    // Os mesmos campos servem aos dois modos, mas o nome muda o sentido:
+    // num progressivo o valor e o que ja correu; num regressivo, o que ja foi
+    // gasto. Chamar os dois de "comecar em" era o que confundia.
+    const progressivo = timer.direction === "up";
+
+    ui.cfgDirectionHint.textContent = progressivo
+      ? "Conta para cima e mostra quanto já passou. O tempo abaixo é a meta."
+      : "Conta para baixo e mostra quanto falta. O tempo abaixo é a duração.";
+
+    ui.cfgTimeLabel.textContent = progressivo ? "Meta" : "Duração";
+    ui.cfgOffsetLabel.textContent = progressivo
+      ? "Já decorrido"
+      : "Já consumido";
+    ui.clockLabel.textContent = progressivo
+      ? "ou começou às"
+      : "ou está correndo desde";
+    ui.clockRow.hidden = false;
 
     ui.applyTime.disabled = running;
+    ui.applyStart.disabled = running;
     ui.cfgTimeHint.textContent = running
       ? "Pause o cronômetro para trocar o tempo."
       : "Trocar o tempo zera a contagem deste cronômetro.";
 
     ui.applyOffset.disabled = running;
+    ui.offsetStart.disabled = running;
     ui.clearOffset.disabled = running || timer.offsetMs === 0;
     ui.cfgOffsetHint.textContent = running
-      ? "Pause o cronômetro para trocar o ponto de partida."
+      ? `Pause para ajustar ${progressivo ? "o decorrido" : "o consumido"}.`
       : timer.offsetMs > 0
-        ? `Parte de ${formatTime(timer.offsetMs)}; o Reset volta para cá, não para zero.`
-        : "Use quando a contagem já estiver em andamento — ex.: a aula já corre há 05:15:00.";
+        ? `Parte de ${formatTime(timer.offsetMs)}. O Reset volta para cá, não para zero.`
+        : progressivo
+          ? "Use quando a contagem já vem de antes — ex.: a aula corre há 05:15:00."
+          : "Use para registrar o que já foi gasto sem o cronômetro rodando.";
 
     ui.setPrimary.disabled = isPrimary;
     ui.setPrimary.textContent = isPrimary
