@@ -102,7 +102,10 @@ function getElapsed(timer) {
     return timer.elapsed;
   }
 
-  return timer.elapsed + (Date.now() - timer.startTime);
+  // Uma correcao de relogio para tras (NTP) deixa `startTime` no futuro. Sem o
+  // piso em zero o decorrido ficaria negativo e o restante passaria do total,
+  // emitindo `pct` acima de 1. O decorrido nunca anda para tras.
+  return timer.elapsed + Math.max(0, Date.now() - timer.startTime);
 }
 
 /**

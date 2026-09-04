@@ -382,6 +382,97 @@ describe("expiracao", () => {
   });
 });
 
+describe("duracao longa", () => {
+  const HOUR = 60 * 60 * 1000;
+
+  it("mantem a precisao de uma contagem de 80 horas", () => {
+    const { store } = createStore();
+    const session = store.createSession();
+    const timer = store.addTimer(session, {
+      name: "Aula",
+      totalTime: 80 * HOUR,
+    });
+
+    // Simula 79 horas ja decorridas: a conta usa Date.now(), nao a soma dos
+    // ticks, entao atraso ou perda de tick nao desalinha o cronometro.
+    timer.status = "running";
+    timer.startTime = Date.now() - 79 * HOUR;
+
+    const remaining = store.getRemaining(timer);
+    assert.ok(
+      Math.abs(remaining - HOUR) < 50,
+      `esperava ~1h restante, veio ${remaining}ms`,
+    );
+    assert.equal(Number.isSafeInteger(timer.totalTime), true);
+  });
+
+  it("um cronometro rodando renova o TTL sozinho, sem cliente conectado", () => {
+    const { store } = createStore();
+    const session = store.createSession();
+    store.startSessionTimer(session, session.timers[0].id);
+
+    // Sem o tick, este lastAccessAt ja teria expirado a sessao.
+    session.lastAccessAt = Date.now() - (SESSION_TTL_MS + 1000);
+    store.broadcastSession(session.id);
+
+    assert.equal(store.getSession(session.id), session);
+    assert.ok(Date.now() - session.lastAccessAt < 1000);
+
+    stopSession(store, session);
+  });
+
+  it("nao acumula intervalos ao longo de varios start/pause", () => {
+    const { store } = createStore();
+    const session = store.createSession();
+    const timerId = session.timers[0].id;
+    const criados = [];
+
+    for (let i = 0; i < 50; i += 1) {
+      store.startSessionTimer(session, timerId);
+      criados.push(session.interval);
+      store.pauseSessionTimer(session, timerId);
+      assert.equal(session.interval, null, `sobrou intervalo na volta ${i}`);
+    }
+
+    assert.equal(new Set(criados).size, 50, "cada start deve criar um unico tick");
+  });
+
+  it("um cronometro que termina nao derruba o tick dos que continuam", () => {
+    const { store } = createStore();
+    const session = store.createSession();
+    const curto = session.timers[0];
+    const longo = store.addTimer(session, { totalTime: 80 * HOUR });
+
+    store.startSessionTimer(session, longo.id);
+    curto.status = "running";
+    curto.startTime = Date.now() - 10 * HOUR;
+
+    store.broadcastSession(session.id);
+
+    assert.equal(curto.status, "finished");
+    assert.equal(longo.status, "running");
+    assert.ok(session.interval, "o tick precisa seguir vivo");
+
+    stopSession(store, session);
+  });
+
+  it("aguenta o relogio do sistema andar para tras sem quebrar o estado", () => {
+    const { store } = createStore();
+    const session = store.createSession();
+    const timer = session.timers[0];
+
+    // Uma correcao de NTP para tras deixa startTime no futuro.
+    timer.status = "running";
+    timer.startTime = Date.now() + 5000;
+
+    const state = store.buildSessionState(session).timers[0];
+    assert.equal(Number.isFinite(state.remaining), true);
+    assert.equal(Number.isFinite(state.elapsed), true);
+    assert.ok(state.pct >= 0 && state.pct <= 1, `pct fora da faixa: ${state.pct}`);
+    assert.equal(store.getRemaining(timer), timer.totalTime);
+  });
+});
+
 describe("closeSession", () => {
   it("emite session:closed e remove a sessao", () => {
     const { store, io } = createStore();

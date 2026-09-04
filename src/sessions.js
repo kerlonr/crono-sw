@@ -112,10 +112,21 @@ function createSessionStore({
   }
 
   // Uma aula de 80 horas pode ficar horas em pausa sem gerar tick nenhum, entao
-  // o TTL sozinho derrubaria a sessao com o admin ainda com a aba aberta. Por
-  // isso, uma sessao com cliente conectado nunca e considerada expirada.
+  // o TTL sozinho derrubaria a sessao com o admin ainda com a aba aberta.
+  //
+  // Duas condicoes salvam a sessao mesmo com o TTL vencido:
+  //   - ha cliente conectado;
+  //   - ha cronometro rodando. Em uso normal o tick renova o TTL a cada 250ms,
+  //     mas se a maquina suspender ou o processo ficar travado por mais tempo
+  //     que o TTL, o primeiro tick apos a volta encontraria a sessao vencida e
+  //     apagaria uma contagem em andamento. Um cronometro rodando e, por
+  //     definicao, uma sessao viva.
   function isSessionExpired(session) {
     if (Date.now() - session.lastAccessAt <= sessionTtlMs) {
+      return false;
+    }
+
+    if (session.timers.some((timer) => timer.status === "running")) {
       return false;
     }
 
