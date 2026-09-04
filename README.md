@@ -1,15 +1,20 @@
 # Cronômetro Sync
 
-Cronômetro sincronizado em tempo real com painel de admin, tela pública de viewer e visão geral das sessões online.
+Cronômetros sincronizados em tempo real com painel de admin, tela pública de viewer e visão geral das sessões online.
+Uma sessão comporta vários cronômetros ao mesmo tempo — por exemplo uma aula de 80 horas regressiva, o tempo decorrido
+progressivo e um intervalo de 25 minutos — todos controlados na mesma tela.
 
 ## Visão Geral
 
 O projeto permite:
 
-- criar uma sessão de cronômetro
-- controlar o tempo por uma tela de admin
-- compartilhar um link de viewer para acompanhar a contagem em tempo real
-- salvar presets localmente no navegador do admin
+- criar uma sessão com quantos cronômetros forem necessários (até 12)
+- dar um título a cada cronômetro e escolher entre contagem regressiva ou progressiva
+- controlar cada cronômetro individualmente ou todos de uma vez pela tela de admin
+- eleger um cronômetro como destaque, que aparece grande no viewer
+- reordenar os cronômetros do board
+- compartilhar um link de viewer para acompanhar as contagens em tempo real
+- salvar modelos de cronômetro no navegador para remontar o board em um clique
 - acompanhar e finalizar sessões ativas em um painel geral
 
 ## Stack
@@ -46,17 +51,19 @@ O projeto permite:
 |           |-- overview.js
 |           `-- viewer.js
 |-- scripts/
-|-- test/
-|   |-- security.test.js
-|   `-- sessions.test.js
 |   |-- deployer.js
 |   `-- webhook-deploy.sh
+|-- test/
+|   |-- security.test.js
+|   |-- sessions.test.js
+|   `-- timers.test.js
 |-- src/
 |   |-- config.js
 |   |-- deploy-client.js
 |   |-- logger.js
 |   |-- security.js
-|   `-- sessions.js
+|   |-- sessions.js
+|   `-- timers.js
 |-- server.js
 |-- Dockerfile
 |-- docker-compose.yml
@@ -73,7 +80,8 @@ O projeto permite:
 
 - `server.js`: configura Express, segurança, rotas HTTP, Socket.IO e CSP.
 - `src/config.js`: centraliza variáveis de ambiente e valores padrão.
-- `src/sessions.js`: guarda sessões em memória e concentra regras do cronômetro.
+- `src/sessions.js`: guarda sessões em memória, a lista de cronômetros de cada uma e o tick compartilhado.
+- `src/timers.js`: modelo de um cronômetro isolado (contagem, start/pause/reset, sanitização).
 - `src/security.js`: valida origem, tokens e assinatura do webhook.
 - `src/logger.js`: registra acessos e eventos do app.
 - `src/deploy-client.js`: dispara o serviço opcional de deploy.
@@ -159,9 +167,32 @@ http://127.0.0.1:3000
 
 1. Abra a página inicial.
 2. Clique em `Criar cronômetro`.
-3. Você será redirecionado para a URL de admin da sessão.
-4. Use o link de viewer exibido no painel para compartilhar a visualização.
-5. Abra `/overview` para ver e finalizar sessões ativas.
+3. Você será redirecionado para a URL de admin da sessão, que já nasce com um cronômetro.
+4. Use `+ Cronômetro` para adicionar os que faltarem, dê um título a cada um e escolha o modo em `Ajustar`.
+5. Marque com a estrela qual cronômetro vai em destaque no viewer.
+6. Use o link de viewer exibido no painel para compartilhar a visualização.
+7. Abra `/overview` para ver e finalizar sessões ativas.
+
+### Cronômetros
+
+Cada cronômetro tem título, modo e tempo total:
+
+| Modo | Mostra na tela | O total significa |
+|---|---|---|
+| Regressivo | quanto falta | a duração |
+| Progressivo | quanto já passou | a meta |
+
+Os dois modos terminam no mesmo ponto (quando o decorrido atinge o total) e usam a mesma escala de cores:
+verde no começo, amarelo abaixo de 40%, vermelho abaixo de 20% e piscando abaixo de 10%.
+
+O board tem ainda `Iniciar todos`, `Pausar todos` e `Zerar todos`. Os cronômetros são independentes entre si:
+começar o intervalo não pausa os demais.
+
+### Modelos
+
+Um modelo guarda título, tempo e modo, fica no `localStorage` do navegador e vale para qualquer sessão.
+Clicar em um modelo na barra superior cria o cronômetro já configurado. Modelos antigos salvos como presets
+por sessão são migrados automaticamente na primeira abertura.
 
 Observação:
 
@@ -183,9 +214,30 @@ As variáveis atuais são:
 | `WEBHOOK_SECRET` | sim, se webhook ativado | Segredo para validar assinatura do webhook |
 | `WEBHOOK_DEPLOY_BRANCH` | não | Branch aceito para o auto-deploy |
 | `DEPLOYER_TIMEOUT_MS` | não | Timeout para disparar o serviço de deploy |
-| `SESSION_TTL_MINUTES` | não | Tempo de vida das sessões em memória |
+| `SESSION_TTL_MINUTES` | não | Tempo de vida das sessões em memória (padrão 1440, ou seja 24h) |
 | `SESSION_CLEANUP_MINUTES` | não | Intervalo de limpeza das sessões expiradas |
 | `TRUST_PROXY` | não | Ativa `trust proxy` no Express |
+
+## Eventos de Socket
+
+Todos os eventos de escrita exigem que o socket tenha entrado na sessão com o papel `admin`.
+
+| Evento | Direção | Descrição |
+|---|---|---|
+| `session:join` | cliente → servidor | Entra na sessão como `admin` (com token) ou `viewer` |
+| `session:state` | servidor → cliente | Estado completo: lista de cronômetros e id do destaque |
+| `session:closed` | servidor → cliente | A sessão foi encerrada |
+| `timer:add` | admin → servidor | Cria um cronômetro; responde com o id ou `limit_reached` |
+| `timer:remove` | admin → servidor | Remove um cronômetro |
+| `timer:update` | admin → servidor | Altera título, modo e/ou tempo total |
+| `timer:setPrimary` | admin → servidor | Define o destaque do viewer |
+| `timer:move` | admin → servidor | Move um cronômetro uma posição no board |
+| `timer:start` / `timer:pause` / `timer:reset` | admin → servidor | Controla um cronômetro pelo id |
+| `timers:bulk` | admin → servidor | Aplica `start`, `pause` ou `reset` em todos |
+| `timer:tick` | servidor → cliente | Formato antigo (um cronômetro), mantido por compatibilidade |
+
+Limites aplicados no servidor: até 12 cronômetros por sessão, título de até 24 caracteres e tempo total
+entre 1 segundo e 100 horas.
 
 ## Endpoints Principais
 
@@ -233,7 +285,8 @@ O projeto já inclui algumas medidas de endurecimento:
 Alguns pontos importantes para considerar antes de produção mais séria:
 
 - as sessões ficam apenas em memória e somem ao reiniciar o processo
-- os presets ficam em `localStorage` no navegador do admin
+- uma sessão sem nenhum cliente conectado expira pelo TTL; com alguém conectado, ela é mantida viva
+- os modelos de cronômetro ficam em `localStorage` no navegador do admin
 - não existe banco de dados
 - não existe painel de usuários nem autenticação tradicional
 - o deploy automatico continua exigindo um sidecar com acesso ao Docker socket do host
