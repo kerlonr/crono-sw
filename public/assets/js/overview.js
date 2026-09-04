@@ -1,6 +1,11 @@
 (() => {
-  const { formatTime, isValidSessionId, sanitizeMs, sanitizePct } =
-    window.CronoUtils;
+  const {
+    formatTime,
+    getDisplayMs,
+    getTimerLabel,
+    isValidSessionId,
+    sanitizeSessionState,
+  } = window.CronoUtils;
   const overviewGrid = document.getElementById("overview-grid");
   const overviewEmpty = document.getElementById("overview-empty");
   const statOnline = document.getElementById("stat-online");
@@ -100,9 +105,9 @@
   }
 
   function createTimerCard(session) {
-    const safeRemaining = sanitizeMs(session.remaining);
-    const safePct = sanitizePct(session.pct);
-    const state = mapStatus(session.status, safeRemaining, safePct);
+    const { timers, primaryTimerId } = sanitizeSessionState(session);
+    const primary = timers.find((timer) => timer.id === primaryTimerId) ?? null;
+    const state = mapStatus(session.status, primary);
 
     const root = document.createElement("article");
     root.className = "timer-card";
@@ -132,7 +137,13 @@
 
     const timer = document.createElement("div");
     timer.className = "card-timer";
-    timer.textContent = formatTime(safeRemaining);
+    timer.textContent = primary ? formatTime(getDisplayMs(primary)) : "--:--:--";
+
+    const primaryLabel = document.createElement("div");
+    primaryLabel.className = "card-primary-label";
+    primaryLabel.textContent = primary
+      ? getTimerLabel(primary)
+      : "Sem cronômetros";
 
     const meta = document.createElement("div");
     meta.className = "card-meta";
@@ -165,9 +176,41 @@
     actionButtons.append(link, closeButton);
     actions.append(actionButtons, note);
     top.append(identity, status);
-    root.append(top, timer, meta, actions);
+    root.append(top, primaryLabel, timer);
+
+    const others = timers.filter((item) => item !== primary);
+    if (others.length) {
+      root.appendChild(createTimerList(others));
+    }
+
+    root.append(meta, actions);
 
     return root;
+  }
+
+  /** Lista compacta com os cronometros que nao estao em destaque na sessao. */
+  function createTimerList(timers) {
+    const list = document.createElement("div");
+    list.className = "card-timer-list";
+
+    for (const timer of timers) {
+      const row = document.createElement("div");
+      row.className = "card-timer-row";
+      row.dataset.status = timer.status;
+
+      const label = document.createElement("span");
+      label.className = "card-timer-row-label";
+      label.textContent = getTimerLabel(timer);
+
+      const value = document.createElement("span");
+      value.className = "card-timer-row-value";
+      value.textContent = formatTime(getDisplayMs(timer));
+
+      row.append(label, value);
+      list.appendChild(row);
+    }
+
+    return list;
   }
 
   async function closeSession(sessionId) {
@@ -206,32 +249,31 @@
     }
   }
 
-  function mapStatus(status, remaining, pct) {
-    if (remaining <= 0 || status === "finished") {
+  /**
+   * Resume a sessao a partir do status agregado e do cronometro em destaque,
+   * que e o que a pessoa ve grande no card.
+   */
+  function mapStatus(status, primary) {
+    const pct = primary ? primary.pct : 1;
+
+    if (!primary || status === "finished") {
       return {
         label: "Finalizado",
         className: "finished",
         cardClass: "is-finished",
-        copy: "O cronômetro chegou ao fim.",
+        copy: primary
+          ? "Todos os cronômetros chegaram ao fim."
+          : "Sessão sem cronômetros configurados.",
       };
     }
 
     if (status === "running") {
-      if (pct <= 0.1) {
-        return {
-          label: "Urgente",
-          className: "running",
-          cardClass: "is-danger",
-          copy: "Últimos segundos em contagem ativa.",
-        };
-      }
-
       if (pct <= 0.2) {
         return {
-          label: "Atenção",
+          label: pct <= 0.1 ? "Urgente" : "Atenção",
           className: "running",
           cardClass: "is-danger",
-          copy: "Fase final do cronômetro.",
+          copy: "Fase final do cronômetro em destaque.",
         };
       }
 
@@ -248,7 +290,7 @@
         label: "Rodando",
         className: "running",
         cardClass: "is-running",
-        copy: "Cronômetro ativo em tempo real.",
+        copy: "Sessão com cronômetro ativo em tempo real.",
       };
     }
 
