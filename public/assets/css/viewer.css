@@ -10,11 +10,19 @@
   --bg-top: #040812;
   --bg-bottom: #091321;
   --ink: #eef6ff;
+  --ink-soft: rgba(238, 246, 255, 0.62);
   --glass: rgba(8, 16, 30, 0.72);
   --line: rgba(169, 214, 255, 0.18);
+  --track: rgba(169, 214, 255, 0.14);
   --accent: #58ead0;
   --warn: #ffc76b;
   --danger: #ff3b30;
+}
+
+/* `display` vindo de uma classe vence a regra `[hidden]` do navegador,
+   entao o atributo precisa de reforco para continuar escondendo. */
+[hidden] {
+  display: none !important;
 }
 
 body {
@@ -101,55 +109,215 @@ body.finished {
   text-align: center;
 }
 
-.timer-display {
+/* ------------------------------------------------------------------ board */
+
+.viewer-board {
   position: relative;
   z-index: 10;
-  padding: 34px 42px;
-  border: 1px solid var(--line);
-  border-radius: 34px;
-  background:
-    linear-gradient(180deg, rgba(23, 38, 64, 0.78), rgba(8, 16, 30, 0.84)),
-    var(--glass);
-  backdrop-filter: blur(26px);
-  -webkit-backdrop-filter: blur(26px);
-  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.34);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(10px, 2vh, 26px);
+  width: 100%;
+  height: 100dvh;
+  padding: clamp(10px, 2vh, 30px);
+}
+
+.viewer-waiting {
+  margin: auto;
+  color: var(--ink-soft);
+}
+
+/* O destaque ocupa toda a altura que sobra depois dos cards secundarios.
+   `flex-basis: 0` evita que o tamanho do proprio texto influencie a divisao. */
+.viewer-primary {
+  display: flex;
+  flex: 1 1 0%;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(4px, 1.2vh, 16px);
+}
+
+.viewer-primary-label {
+  color: var(--ink-soft);
+  font-family: "Barlow", sans-serif;
+  font-size: clamp(13px, min(3vw, 3.2vh), 30px);
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  line-height: 1.2;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.viewer-primary-meta {
+  color: rgba(238, 246, 255, 0.42);
+  font-family: "Barlow", sans-serif;
+  font-size: clamp(11px, min(1.6vw, 2vh), 18px);
+  letter-spacing: 0.1em;
+  text-align: center;
+}
+
+.viewer-primary-bar {
+  width: min(76%, 880px);
+  height: clamp(6px, 1.1vh, 12px);
+}
+
+.timer-display {
   color: var(--ink);
   font-family: "Share Tech Mono", monospace;
-  font-size: clamp(96px, 21vw, 270px);
+  font-size: clamp(44px, min(15vw, 30vh), 300px);
+  font-variant-numeric: tabular-nums;
   letter-spacing: 0.04em;
   line-height: 1;
   text-shadow: 0 0 26px rgba(122, 191, 255, 0.12);
   transition:
     color 0.45s ease,
     text-shadow 0.45s ease,
-    opacity 0.3s ease,
-    background 0.4s ease;
+    opacity 0.3s ease;
   user-select: none;
 }
 
-.timer-display.green {
+/* Com container queries o destaque passa a medir o espaco que realmente sobrou
+   para ele, em vez de chutar pela viewport: quanto mais cards secundarios
+   entram, menor ele fica, sem transbordar. */
+@supports (container-type: size) {
+  .viewer-primary {
+    container-type: size;
+  }
+
+  .timer-display {
+    font-size: clamp(44px, min(16cqw, 34cqh), 300px);
+  }
+}
+
+/* ------------------------------------------------------------ secundarios */
+
+.viewer-secondaries {
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: clamp(8px, 1.2vw, 18px);
+  max-height: 46dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.viewer-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(4px, 0.9vh, 10px);
+  padding: clamp(10px, 1.6vh, 22px) clamp(12px, 1.4vw, 26px);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(23, 38, 64, 0.7), rgba(8, 16, 30, 0.8)),
+    var(--glass);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.28);
+}
+
+.viewer-card-label {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-family: "Barlow", sans-serif;
+  font-size: clamp(11px, 1.2vw, 16px);
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-align: center;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.viewer-card-time {
+  color: var(--ink);
+  font-family: "Share Tech Mono", monospace;
+  font-size: clamp(26px, 6.5vw, 62px);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  transition:
+    color 0.4s ease,
+    opacity 0.3s ease;
+}
+
+@supports (container-type: inline-size) {
+  .viewer-card {
+    container-type: inline-size;
+  }
+
+  .viewer-card-time {
+    font-size: clamp(24px, 22cqi, 82px);
+  }
+}
+
+.viewer-card .viewer-progress {
+  width: 100%;
+}
+
+/* -------------------------------------------------------------- progresso */
+
+.viewer-progress {
+  overflow: hidden;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--track);
+}
+
+.viewer-progress-fill {
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition:
+    width 0.25s linear,
+    background 0.4s ease;
+}
+
+.viewer-progress-fill[data-phase="yellow"] {
+  background: var(--warn);
+}
+
+.viewer-progress-fill[data-phase="red"],
+.viewer-progress-fill[data-phase="blink"] {
+  background: var(--danger);
+}
+
+/* ------------------------------------------------------------------ fases */
+
+.timer-display.green,
+.viewer-card-time.green {
   color: var(--accent);
   text-shadow: 0 0 30px rgba(88, 234, 208, 0.24);
 }
 
-.timer-display.yellow {
+.timer-display.yellow,
+.viewer-card-time.yellow {
   color: var(--warn);
   text-shadow: 0 0 30px rgba(255, 199, 107, 0.24);
 }
 
-.timer-display.red {
+.timer-display.red,
+.viewer-card-time.red {
   color: var(--danger);
   text-shadow:
     0 0 26px rgba(255, 59, 48, 0.44),
     0 0 58px rgba(255, 24, 24, 0.2);
 }
 
-.timer-display.blink {
+.timer-display.blink,
+.viewer-card-time.blink {
   color: var(--danger);
   animation: timerBlink 0.56s infinite;
 }
 
-.timer-display.paused {
+.timer-display.paused,
+.viewer-card-time.paused {
   opacity: 0.5;
 }
 
@@ -164,12 +332,27 @@ body.finished {
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .timer-display.blink,
+  .viewer-card-time.blink {
+    animation: none;
+    opacity: 0.85;
+  }
+}
+
 @media (max-width: 720px) {
-  .timer-display {
-    width: calc(100% - 24px);
-    padding: 24px 18px;
-    border-radius: 24px;
-    font-size: clamp(54px, 18vw, 118px);
-    text-align: center;
+  .viewer-board {
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .viewer-secondaries {
+    grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
+    max-height: 40dvh;
+  }
+
+  .viewer-card {
+    padding: 10px 12px;
+    border-radius: 18px;
   }
 }

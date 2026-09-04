@@ -1,13 +1,55 @@
+/**
+ * Viewer publico: um cronometro em destaque ocupando a tela e os demais em
+ * cards menores no rodape.
+ *
+ * Como no admin, os cards secundarios so sao recriados quando a lista muda; os
+ * ticks apenas atualizam texto, cor e largura da barra.
+ */
 (() => {
-  const { formatTime, getPhase, isValidSessionId, sanitizeMs, sanitizePct } =
-    window.CronoUtils;
+  const {
+    formatTime,
+    getDisplayMs,
+    getPhase,
+    getTimerLabel,
+    getTimerMetaLabel,
+    isValidSessionId,
+    sanitizeSessionState,
+  } = window.CronoUtils;
+
+  const GLOWS = {
+    green:
+      "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(0,245,160,0.05) 0%, transparent 70%)",
+    yellow:
+      "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(255,184,0,0.07) 0%, transparent 70%)",
+    red: "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(255,62,62,0.08) 0%, transparent 70%)",
+    blink:
+      "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(255,62,62,0.12) 0%, transparent 70%)",
+    finished:
+      "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(255,62,62,0.25) 0%, transparent 70%)",
+  };
+
   const socket = io();
   const sessionId = window.location.pathname.split("/").pop();
-  const timerDisplay = document.getElementById("timer-display");
-  const glowBg = document.getElementById("glow-bg");
-  const finishSoundWatcher = window.CronoFinishSound?.createWatcher();
 
-  if (!timerDisplay || !glowBg) {
+  const elements = {
+    board: document.getElementById("viewer-board"),
+    glowBg: document.getElementById("glow-bg"),
+    message: document.getElementById("viewer-message"),
+    primary: document.getElementById("viewer-primary"),
+    primaryLabel: document.getElementById("viewer-primary-label"),
+    primaryMeta: document.getElementById("viewer-primary-meta"),
+    primaryProgress: document.getElementById("viewer-primary-progress"),
+    primaryTime: document.getElementById("viewer-primary-time"),
+    secondaries: document.getElementById("viewer-secondaries"),
+    cardTemplate: document.getElementById("viewer-card-template"),
+  };
+
+  const cards = new Map();
+  const finishWatchers = new Map();
+
+  let secondarySignature = null;
+
+  if (!elements.board || !elements.primary || !elements.cardTemplate) {
     return;
   }
 
@@ -30,45 +72,151 @@
     showError("Sessão encerrada.");
   });
 
-  socket.on("timer:tick", ({ status, remaining, pct }) => {
-    const safeRemaining = sanitizeMs(remaining);
-    const safePct = sanitizePct(pct);
+  socket.on("session:state", (raw) => {
+    const state = sanitizeSessionState(raw);
+    const primary =
+      state.timers.find((timer) => timer.id === state.primaryTimerId) ?? null;
+    const secondaries = state.timers.filter((timer) => timer !== primary);
 
-    finishSoundWatcher?.sync(status, safeRemaining);
-    timerDisplay.textContent = formatTime(safeRemaining);
+    syncFinishWatchers(state.timers);
+    renderPrimary(primary);
+    renderSecondaries(secondaries);
+  });
 
-    if (safeRemaining <= 0) {
-      timerDisplay.className = "timer-display red";
-      document.body.classList.add("flash-red", "finished");
-      glowBg.style.background =
-        "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(255,62,62,0.25) 0%, transparent 70%)";
+  function renderPrimary(timer) {
+    const hasPrimary = Boolean(timer);
+
+    elements.primary.hidden = !hasPrimary;
+    if (elements.message) {
+      elements.message.hidden = hasPrimary;
+    }
+
+    if (!hasPrimary) {
+      document.body.classList.remove("flash-red", "finished");
+      elements.glowBg.style.background = "none";
       return;
     }
 
-    document.body.classList.remove("flash-red", "finished");
+    const phase = getPhase(timer.pct);
+    const isFinished = timer.status === "finished" || timer.remaining <= 0;
 
-    const phase = getPhase(safePct);
+    elements.primaryLabel.textContent = getTimerLabel(timer);
+    elements.primaryMeta.textContent = getTimerMetaLabel(timer);
+    elements.primaryTime.textContent = formatTime(getDisplayMs(timer));
+    elements.primaryTime.className = `timer-display ${buildTimerClass(
+      timer,
+      phase,
+    )}`;
+    setProgress(elements.primaryProgress, timer, phase);
 
-    let className = "timer-display";
-    if (status === "running") className += ` ${phase}`;
-    else if (status === "paused") className += ` ${phase} paused`;
-    else className += " green";
+    document.body.classList.toggle("flash-red", isFinished);
+    document.body.classList.toggle("finished", isFinished);
 
-    timerDisplay.className = className;
+    if (isFinished) {
+      elements.glowBg.style.background = GLOWS.finished;
+      return;
+    }
 
-    const glows = {
-      green:
-        "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(0,245,160,0.05) 0%, transparent 70%)",
-      yellow:
-        "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(255,184,0,0.07) 0%, transparent 70%)",
-      red:
-        "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(255,62,62,0.08) 0%, transparent 70%)",
-      blink:
-        "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(255,62,62,0.12) 0%, transparent 70%)",
+    elements.glowBg.style.background =
+      timer.status === "running" ? (GLOWS[phase] ?? GLOWS.green) : "none";
+  }
+
+  function renderSecondaries(timers) {
+    const signature = timers.map((timer) => timer.id).join(",");
+
+    if (signature !== secondarySignature) {
+      rebuildSecondaries(timers);
+      secondarySignature = signature;
+    }
+
+    elements.secondaries.hidden = timers.length === 0;
+    elements.secondaries.dataset.count = String(timers.length);
+
+    for (const timer of timers) {
+      const card = cards.get(timer.id);
+      if (card) {
+        updateSecondary(card, timer);
+      }
+    }
+  }
+
+  function rebuildSecondaries(timers) {
+    const present = new Set(timers.map((timer) => timer.id));
+
+    for (const [timerId, card] of cards) {
+      if (present.has(timerId)) continue;
+      card.root.remove();
+      cards.delete(timerId);
+    }
+
+    for (const timer of timers) {
+      let card = cards.get(timer.id);
+      if (!card) {
+        card = createSecondary();
+        cards.set(timer.id, card);
+      }
+
+      elements.secondaries.appendChild(card.root);
+    }
+  }
+
+  function createSecondary() {
+    const root = elements.cardTemplate.content.firstElementChild.cloneNode(true);
+
+    return {
+      root,
+      label: root.querySelector(".viewer-card-label"),
+      time: root.querySelector(".viewer-card-time"),
+      progress: root.querySelector(".viewer-progress-fill"),
     };
+  }
 
-    glowBg.style.background = status === "running" ? glows[phase] || glows.green : "none";
-  });
+  function updateSecondary(card, timer) {
+    const phase = getPhase(timer.pct);
+
+    card.root.dataset.status = timer.status;
+    card.label.textContent = getTimerLabel(timer);
+    card.time.textContent = formatTime(getDisplayMs(timer));
+    card.time.className = `viewer-card-time ${buildTimerClass(timer, phase)}`;
+    setProgress(card.progress, timer, phase);
+  }
+
+  /** Cor pela fase quando ativo; parado fica neutro, pausado fica esmaecido. */
+  function buildTimerClass(timer, phase) {
+    if (timer.status === "finished" || timer.remaining <= 0) return "red";
+    if (timer.status === "running") return phase;
+    if (timer.status === "paused") return `${phase} paused`;
+    return "green";
+  }
+
+  function setProgress(element, timer, phase) {
+    if (!element) return;
+
+    const fillPct = timer.direction === "up" ? 1 - timer.pct : timer.pct;
+    element.style.width = `${Math.round(fillPct * 1000) / 10}%`;
+    element.dataset.phase = phase;
+  }
+
+  function syncFinishWatchers(timers) {
+    const present = new Set(timers.map((timer) => timer.id));
+
+    for (const timerId of finishWatchers.keys()) {
+      if (!present.has(timerId)) {
+        finishWatchers.delete(timerId);
+      }
+    }
+
+    for (const timer of timers) {
+      let watcher = finishWatchers.get(timer.id);
+      if (!watcher) {
+        watcher = window.CronoFinishSound?.createWatcher();
+        if (!watcher) return;
+        finishWatchers.set(timer.id, watcher);
+      }
+
+      watcher.sync(timer.status, timer.remaining);
+    }
+  }
 
   function showError(message) {
     socket.disconnect();

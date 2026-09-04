@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description"
-    content="Viewer p&#250;blico do Cron&#244;metro Sync para acompanhar uma contagem sincronizada em tempo real." />
+    content="Viewer p&#250;blico do Cron&#244;metro Sync para acompanhar v&#225;rias contagens sincronizadas em tempo real." />
   <meta name="theme-color" content="#040812" />
   <meta name="application-name" content="Cron&#244;metro Sync" />
   <link rel="canonical" href="__CANONICAL_URL__" />
@@ -17,7 +17,7 @@
   <meta property="og:site_name" content="Cron&#244;metro Sync" />
   <meta property="og:title" content="Cron&#244;metro Sync - Viewer" />
   <meta property="og:description"
-    content="Acompanhe o cron&#244;metro sincronizado em uma tela limpa, sem controles." />
+    content="Acompanhe os cron&#244;metros sincronizados em uma tela limpa, sem controles." />
   <meta property="og:url" content="__CANONICAL_URL__" />
   <meta property="og:image" content="__OG_IMAGE_URL__" />
   <meta property="og:image:secure_url" content="__OG_IMAGE_URL__" />
@@ -27,24 +27,49 @@
   <meta property="og:image:alt" content="&#205;cone do Cron&#244;metro Sync" />
   <meta name="twitter:card" content="summary" />
   <meta name="twitter:title" content="Cron&#244;metro Sync - Viewer" />
-  <meta name="twitter:description"
-    content="Viewer limpo para acompanhar o tempo em sincronia." />
+  <meta name="twitter:description" content="Viewer limpo para acompanhar os tempos em sincronia." />
   <meta name="twitter:image" content="__OG_IMAGE_URL__" />
   <title>Cronômetro</title>
 
-  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;600;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;600;900&display=swap"
+    rel="stylesheet" />
   <script src="/socket.io/socket.io.js"></script>
 
-  <link rel="stylesheet" href="/assets/css/viewer.css?v=20260429b" />
+  <link rel="stylesheet" href="/assets/css/viewer.css?v=20260904a" />
 </head>
 
 <body>
   <div class="glow-bg" id="glow-bg"></div>
-  <div class="timer-display" id="timer-display">--:--:--</div>
 
-  <script src="/assets/js/crono-utils.js?v=20260612a"></script>
+  <main class="viewer-board" id="viewer-board">
+    <section class="viewer-primary" id="viewer-primary" hidden>
+      <div class="viewer-primary-label" id="viewer-primary-label"></div>
+      <div class="timer-display" id="viewer-primary-time">--:--:--</div>
+      <div class="viewer-progress viewer-primary-bar">
+        <div class="viewer-progress-fill" id="viewer-primary-progress"></div>
+      </div>
+      <div class="viewer-primary-meta" id="viewer-primary-meta"></div>
+    </section>
+
+    <section class="viewer-secondaries" id="viewer-secondaries" data-count="0" aria-label="Outros cronômetros" hidden>
+    </section>
+
+    <p class="screen-message viewer-waiting" id="viewer-message">Aguardando cronômetros…</p>
+  </main>
+
+  <template id="viewer-card-template">
+    <article class="viewer-card">
+      <div class="viewer-card-label"></div>
+      <div class="viewer-card-time green">--:--:--</div>
+      <div class="viewer-progress">
+        <div class="viewer-progress-fill"></div>
+      </div>
+    </article>
+  </template>
+
+  <script src="/assets/js/crono-utils.js?v=20260904a"></script>
   <script src="/assets/js/finish-sound.js?v=20260429b"></script>
-  <script src="/assets/js/viewer.js?v=20260612a"></script>
+  <script src="/assets/js/viewer.js?v=20260904a"></script>
 </body>
 
 </html>
