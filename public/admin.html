@@ -33,209 +33,232 @@
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;600;900&display=swap"
     rel="stylesheet" />
   <script src="/socket.io/socket.io.js"></script>
-  <link rel="stylesheet" href="/assets/css/admin.css?v=20260904a" />
+  <link rel="stylesheet" href="/assets/css/admin.css?v=20260904e" />
 </head>
 
 <body>
   <div id="admin-panel">
-    <header class="board-header">
-      <div class="board-identity">
-        <span class="badge">Admin Control</span>
-        <div class="board-session">
-          <span class="board-session-label">Sessão</span>
-          <span class="board-session-id" id="session-label">--------</span>
-          <span class="board-count" id="timer-count" title="Cronômetros na sessão">0/12</span>
+    <div class="desktop-layout" id="desktop-layout">
+      <span class="badge">Admin Control</span>
+
+      <div class="desktop-presets-bar">
+        <span class="desktop-presets-label">Modelos</span>
+        <div class="desktop-presets-chips" id="models-chips">
+          <span class="presets-empty-d">Salve um cronômetro como modelo nas configurações</span>
+        </div>
+        <div class="desktop-presets-actions">
+          <button class="btn-icon-d" id="btn-add-timer" type="button" title="Adicionar cronômetro"
+            aria-label="Adicionar cronômetro">+</button>
+          <button class="btn-icon-d" id="btn-fs" type="button" title="Tela cheia"
+            aria-label="Alternar tela cheia">FS</button>
+          <button class="btn-icon-d" id="btn-open-modal" type="button" title="Configurações"
+            aria-label="Abrir configurações">
+            <svg class="btn-icon-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path
+                d="M10.2 2.7h3.6l.55 2.22c.45.15.88.33 1.28.53l1.95-1.15 2.55 2.55-1.15 1.95c.2.4.38.83.53 1.28l2.22.55v3.6l-2.22.55c-.15.45-.33.88-.53 1.28l1.15 1.95-2.55 2.55-1.95-1.15c-.4.2-.83.38-1.28.53l-.55 2.22h-3.6l-.55-2.22a8.22 8.22 0 0 1-1.28-.53l-1.95 1.15-2.55-2.55 1.15-1.95a8.22 8.22 0 0 1-.53-1.28l-2.22-.55v-3.6l2.22-.55c.15-.45.33-.88.53-1.28L4.27 6.82l2.55-2.55 1.95 1.15c.4-.2.83-.38 1.28-.53z" />
+              <circle cx="12" cy="12" r="3.25" />
+            </svg>
+          </button>
         </div>
       </div>
 
-      <div class="board-global" role="group" aria-label="Controles de todos os cronômetros">
-        <button class="btn-global btn-global-start" id="btn-start-all" type="button" disabled>Iniciar todos</button>
-        <button class="btn-global btn-global-pause" id="btn-pause-all" type="button" disabled>Pausar todos</button>
-        <button class="btn-global btn-global-reset" id="btn-reset-all" type="button" disabled>Zerar todos</button>
+      <div class="primary-block" id="primary-block">
+        <div class="primary-name" id="primary-name">Cronômetro</div>
+        <div class="timer-display timer-display-d" id="primary-time">00:00:00</div>
+        <div class="primary-meta" id="primary-meta"></div>
+        <div class="progress-wrap">
+          <div class="progress-fill" id="primary-progress"></div>
+        </div>
+        <div class="status-row">
+          <div class="status-dot" id="primary-dot"></div>
+          <span id="primary-status">PARADO</span>
+        </div>
+        <div class="controls-d">
+          <button class="btn-d btn-start-d" id="primary-start" type="button" data-action="start">Start</button>
+          <button class="btn-d btn-pause-d" id="primary-pause" type="button" data-action="pause" disabled>Pause</button>
+          <button class="btn-d btn-reset-d" id="primary-reset" type="button" data-action="reset">Reset</button>
+        </div>
       </div>
 
-      <div class="board-actions">
+      <div class="timer-strip" id="timer-strip"></div>
+
+      <p class="board-empty" id="board-empty" hidden>
+        Nenhum cronômetro nesta sessão. Use <strong>+</strong> na barra acima para criar o primeiro.
+      </p>
+
+      <p class="board-feedback" id="board-feedback" aria-live="polite"></p>
+
+      <div class="viewer-link-d">
         <a class="viewer-direct-link shortcut-link" href="/viewer.html" target="_blank" rel="noopener noreferrer">Abrir
           viewer</a>
-        <button class="btn-icon" id="btn-fullscreen" type="button" title="Tela cheia"
-          aria-label="Alternar tela cheia">⛶</button>
-        <button class="btn-icon" id="btn-open-settings" type="button" title="Configurações"
-          aria-label="Abrir configurações">
-          <svg class="btn-icon-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path
-              d="M10.2 2.7h3.6l.55 2.22c.45.15.88.33 1.28.53l1.95-1.15 2.55 2.55-1.15 1.95c.2.4.38.83.53 1.28l2.22.55v3.6l-2.22.55c-.15.45-.33.88-.53 1.28l1.15 1.95-2.55 2.55-1.95-1.15c-.4.2-.83.38-1.28.53l-.55 2.22h-3.6l-.55-2.22a8.22 8.22 0 0 1-1.28-.53l-1.95 1.15-2.55-2.55 1.15-1.95a8.22 8.22 0 0 1-.53-1.28l-2.22-.55v-3.6l2.22-.55c.15-.45.33-.88.53-1.28L4.27 6.82l2.55-2.55 1.95 1.15c.4-.2.83-.38 1.28-.53z" />
-            <circle cx="12" cy="12" r="3.25" />
-          </svg>
-        </button>
       </div>
-    </header>
-
-    <div class="models-bar">
-      <span class="models-label">Modelos</span>
-      <div class="models-chips" id="models-chips"></div>
-      <button class="btn-add-timer" id="btn-add-timer" type="button">+ Cronômetro</button>
     </div>
-
-    <p class="board-feedback" id="board-feedback" aria-live="polite"></p>
-
-    <main class="timer-board" id="timer-board"></main>
-
-    <p class="board-empty" id="board-empty" hidden>
-      Nenhum cronômetro nesta sessão. Use <strong>+ Cronômetro</strong> ou um modelo salvo para começar.
-    </p>
   </div>
 
-  <div class="settings-overlay" id="settings-overlay">
-    <div class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
-      <div class="settings-header">
-        <h2 class="settings-title" id="settings-title">Configurações</h2>
-        <button class="btn-close-settings" id="btn-close-settings" type="button" aria-label="Fechar configurações">
-          ✕
-        </button>
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-header">
+        <div class="modal-title" id="modal-title">Configurações</div>
+        <button class="btn-close-modal" id="btn-close-modal" type="button" aria-label="Fechar modal">X</button>
       </div>
 
-      <div class="settings-grid">
-        <section class="settings-col">
-          <div class="section-label">Novo modelo</div>
-          <p class="section-copy">
-            Um modelo guarda nome, tempo e modo. Ele fica salvo neste navegador e vale para qualquer sessão.
-          </p>
+      <div class="config-grid">
+        <div class="config-column">
+          <div class="section-label">Cronômetros</div>
+          <div class="config-list" id="config-list"></div>
+          <button class="btn-set" id="btn-add-timer-modal" type="button">+ Adicionar cronômetro</button>
+          <div class="field-hint" id="timer-count">0 de 12</div>
+        </div>
 
-          <label class="field">
-            <span class="field-label">Nome</span>
-            <input type="text" id="model-name" placeholder="Ex.: Aula, Break, Decorrido" maxlength="24"
-              aria-describedby="model-feedback" />
-          </label>
+        <div class="config-column">
+          <div class="config-empty" id="config-empty">Selecione um cronômetro à esquerda para configurar.</div>
 
-          <div class="time-inputs">
-            <label class="time-field">
-              <span>h</span>
-              <input type="number" id="model-h" min="0" max="100" value="0" inputmode="numeric" />
+          <div class="config-form" id="config-form" hidden>
+            <label class="field">
+              <span class="field-label">Título</span>
+              <input type="text" id="cfg-name" maxlength="24" placeholder="Ex.: Aula, Break, Decorrido" />
             </label>
-            <span class="time-sep">:</span>
-            <label class="time-field">
-              <span>min</span>
-              <input type="number" id="model-m" min="0" max="59" value="25" inputmode="numeric" />
-            </label>
-            <span class="time-sep">:</span>
-            <label class="time-field">
-              <span>seg</span>
-              <input type="number" id="model-s" min="0" max="59" value="0" inputmode="numeric" />
-            </label>
+
+            <div class="field">
+              <span class="field-label">Modo</span>
+              <div class="segmented" role="group" aria-label="Modo de contagem">
+                <button type="button" data-direction="down" aria-pressed="true">Regressivo</button>
+                <button type="button" data-direction="up" aria-pressed="false">Progressivo</button>
+              </div>
+              <span class="field-hint" id="cfg-direction-hint"></span>
+            </div>
+
+            <div class="field">
+              <span class="field-label">Tempo</span>
+              <div class="time-inputs">
+                <div class="time-input-group">
+                  <label for="cfg-h">h</label>
+                  <input type="number" id="cfg-h" min="0" max="100" value="0" inputmode="numeric" />
+                </div>
+                <div class="time-sep">:</div>
+                <div class="time-input-group">
+                  <label for="cfg-m">min</label>
+                  <input type="number" id="cfg-m" min="0" max="59" value="5" inputmode="numeric" />
+                </div>
+                <div class="time-sep">:</div>
+                <div class="time-input-group">
+                  <label for="cfg-s">seg</label>
+                  <input type="number" id="cfg-s" min="0" max="59" value="0" inputmode="numeric" />
+                </div>
+              </div>
+              <div class="setter-actions">
+                <button class="btn-set" id="btn-apply-time" type="button">Aplicar tempo</button>
+                <button class="btn-set secondary" id="btn-save-model" type="button">Salvar como modelo</button>
+              </div>
+              <span class="field-hint" id="cfg-time-hint"></span>
+            </div>
+
+            <div class="field">
+              <span class="field-label">Começar em</span>
+              <div class="time-inputs">
+                <div class="time-input-group">
+                  <label for="cfg-off-h">h</label>
+                  <input type="number" id="cfg-off-h" min="0" max="100" value="0" inputmode="numeric" />
+                </div>
+                <div class="time-sep">:</div>
+                <div class="time-input-group">
+                  <label for="cfg-off-m">min</label>
+                  <input type="number" id="cfg-off-m" min="0" max="59" value="0" inputmode="numeric" />
+                </div>
+                <div class="time-sep">:</div>
+                <div class="time-input-group">
+                  <label for="cfg-off-s">seg</label>
+                  <input type="number" id="cfg-off-s" min="0" max="59" value="0" inputmode="numeric" />
+                </div>
+              </div>
+              <div class="setter-actions">
+                <button class="btn-set" id="btn-apply-offset" type="button">Aplicar início</button>
+                <button class="btn-set secondary" id="btn-clear-offset" type="button">Voltar a zero</button>
+              </div>
+              <span class="field-hint" id="cfg-offset-hint"></span>
+            </div>
+
+            <div class="field">
+              <span class="field-label">Ganhar tempo automaticamente</span>
+              <label class="accrual-toggle">
+                <input type="checkbox" id="accrual-enabled" />
+                <span>Somar tempo conforme outro cronômetro avança</span>
+              </label>
+              <div class="accrual-sentence" id="accrual-sentence" data-enabled="false">
+                <span>A cada</span>
+                <input type="number" id="accrual-every-h" min="0" max="99" value="1" inputmode="numeric"
+                  aria-label="Horas do intervalo da regra" />
+                <span>h</span>
+                <input type="number" id="accrual-every-m" min="0" max="59" value="0" inputmode="numeric"
+                  aria-label="Minutos do intervalo da regra" />
+                <span>min de</span>
+                <select id="accrual-source" aria-label="Cronômetro que dispara a regra"></select>
+                <span>, somar</span>
+                <input type="number" id="accrual-add-m" min="0" max="599" value="5" inputmode="numeric"
+                  aria-label="Minutos a somar" />
+                <span>min</span>
+              </div>
+              <span class="accrual-status" id="accrual-status"></span>
+            </div>
+
+            <div class="config-actions">
+              <button class="btn-set" id="btn-set-primary" type="button">Destacar no viewer</button>
+              <button class="btn-set secondary" id="btn-move-up" type="button">Mover ↑</button>
+              <button class="btn-set secondary" id="btn-move-down" type="button">Mover ↓</button>
+              <button class="btn-danger" id="btn-remove-timer" type="button">Remover</button>
+            </div>
           </div>
+        </div>
+      </div>
 
-          <label class="field">
-            <span class="field-label">Modo</span>
-            <select id="model-direction">
-              <option value="down">Regressivo (conta para baixo)</option>
-              <option value="up">Progressivo (conta para cima)</option>
-            </select>
-          </label>
-
-          <button class="btn-primary" id="btn-add-model" type="button">Salvar modelo</button>
-          <p class="field-feedback" id="model-feedback" aria-live="polite"></p>
-        </section>
-
-        <section class="settings-col">
+      <div class="config-grid">
+        <div class="config-column">
           <div class="section-label">Modelos salvos</div>
-          <p class="section-copy">Clique em um modelo na barra superior para criar o cronômetro já configurado.</p>
-          <div class="models-manage" id="models-manage"></div>
-        </section>
+          <div class="presets-panel-copy">
+            Um modelo guarda título, tempo e modo. Fica neste navegador e serve para qualquer sessão.
+          </div>
+          <div class="presets-manage-list" id="models-manage"></div>
+        </div>
 
-        <section class="settings-col">
+        <div class="config-column settings-shortcuts">
           <div class="section-label">Visão geral</div>
-          <p class="section-copy">Todas as sessões ativas do servidor, com os cronômetros de cada uma.</p>
-          <a class="settings-link shortcut-link" href="/overview" target="_blank" rel="noopener noreferrer">
-            Ver sessões ativas
-          </a>
-        </section>
+          <a class="settings-link shortcut-link" href="/overview" target="_blank" rel="noopener noreferrer">Ver sessões
+            ativas</a>
+        </div>
       </div>
     </div>
   </div>
 
-  <template id="timer-card-template">
-    <article class="timer-card">
-      <header class="card-head">
-        <input class="card-name" type="text" maxlength="24" placeholder="Cronômetro"
-          aria-label="Título do cronômetro" />
-        <div class="card-head-actions">
-          <button class="card-icon-btn card-primary-btn" type="button" data-action="primary" aria-pressed="false"
-            title="Destacar no viewer" aria-label="Destacar no viewer">★</button>
-          <button class="card-icon-btn" type="button" data-action="move-up" title="Mover para cima"
-            aria-label="Mover para cima">↑</button>
-          <button class="card-icon-btn" type="button" data-action="move-down" title="Mover para baixo"
-            aria-label="Mover para baixo">↓</button>
-          <button class="card-icon-btn card-remove-btn" type="button" data-action="remove" title="Remover cronômetro"
-            aria-label="Remover cronômetro">✕</button>
-        </div>
-      </header>
-
-      <span class="card-badge card-badge-primary">Destaque no viewer</span>
-
-      <div class="card-time green">00:00:00</div>
-      <div class="card-meta"></div>
-
-      <div class="card-progress">
-        <div class="card-progress-fill"></div>
+  <template id="timer-mini-template">
+    <article class="timer-mini">
+      <div class="timer-mini-head">
+        <span class="timer-mini-dot"></span>
+        <span class="timer-mini-name"></span>
       </div>
-
-      <div class="card-status">
-        <span class="status-dot"></span>
-        <span class="card-status-text">PARADO</span>
-        <span class="card-badge card-badge-direction">Regressivo</span>
+      <div class="timer-mini-time green">00:00:00</div>
+      <div class="timer-mini-meta"></div>
+      <div class="progress-wrap">
+        <div class="progress-fill"></div>
       </div>
-
-      <div class="card-controls">
-        <button class="card-btn card-btn-start" type="button" data-action="start">Start</button>
-        <button class="card-btn card-btn-pause" type="button" data-action="pause">Pause</button>
-        <button class="card-btn card-btn-reset" type="button" data-action="reset">Reset</button>
-      </div>
-
-      <button class="card-config-toggle" type="button" data-action="toggle-config" aria-expanded="false">
-        Ajustar
-      </button>
-
-      <div class="card-config" hidden>
-        <div class="card-direction" role="group" aria-label="Modo de contagem">
-          <button class="direction-btn" type="button" data-action="direction" data-direction="down"
-            aria-pressed="true">Regressivo</button>
-          <button class="direction-btn" type="button" data-action="direction" data-direction="up"
-            aria-pressed="false">Progressivo</button>
-        </div>
-
-        <div class="time-inputs">
-          <label class="time-field">
-            <span>h</span>
-            <input class="input-h" type="number" min="0" max="100" value="0" inputmode="numeric"
-              aria-label="Horas" />
-          </label>
-          <span class="time-sep">:</span>
-          <label class="time-field">
-            <span>min</span>
-            <input class="input-m" type="number" min="0" max="59" value="5" inputmode="numeric"
-              aria-label="Minutos" />
-          </label>
-          <span class="time-sep">:</span>
-          <label class="time-field">
-            <span>seg</span>
-            <input class="input-s" type="number" min="0" max="59" value="0" inputmode="numeric"
-              aria-label="Segundos" />
-          </label>
-        </div>
-
-        <div class="card-config-actions">
-          <button class="card-btn card-btn-apply" type="button" data-action="apply-time">Aplicar tempo</button>
-          <button class="card-btn card-btn-ghost" type="button" data-action="save-model">Salvar modelo</button>
-        </div>
-
-        <p class="card-config-note" aria-live="polite"></p>
+      <div class="timer-mini-controls">
+        <button class="btn-mini btn-mini-start" type="button" data-action="start">Start</button>
+        <button class="btn-mini btn-mini-pause" type="button" data-action="pause">Pause</button>
+        <button class="btn-mini" type="button" data-action="reset">Reset</button>
       </div>
     </article>
   </template>
 
-  <script src="/assets/js/crono-utils.js?v=20260904a"></script>
+  <template id="config-item-template">
+    <button class="config-item" type="button" aria-selected="false">
+      <span class="config-item-star" hidden>★</span>
+      <span class="config-item-name"></span>
+      <span class="config-item-time"></span>
+    </button>
+  </template>
+
+  <script src="/assets/js/crono-utils.js?v=20260904d"></script>
   <script src="/assets/js/finish-sound.js?v=20260429b"></script>
-  <script src="/assets/js/admin.js?v=20260904a"></script>
+  <script src="/assets/js/admin.js?v=20260904d"></script>
 </body>
 
 </html>

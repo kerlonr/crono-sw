@@ -163,7 +163,18 @@ body.finished {
   height: clamp(6px, 1.1vh, 12px);
 }
 
+/* Moldura de vidro do design original: os digitos ficam dentro de um painel,
+   nao soltos no fundo. */
 .timer-display {
+  padding: clamp(16px, 3vh, 34px) clamp(20px, 4vw, 42px);
+  border: 1px solid var(--line);
+  border-radius: clamp(20px, 3vw, 34px);
+  background:
+    linear-gradient(180deg, rgba(23, 38, 64, 0.78), rgba(8, 16, 30, 0.84)),
+    var(--glass);
+  backdrop-filter: blur(26px);
+  -webkit-backdrop-filter: blur(26px);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.34);
   color: var(--ink);
   font-family: "Share Tech Mono", monospace;
   font-size: clamp(44px, min(15vw, 30vh), 300px);
