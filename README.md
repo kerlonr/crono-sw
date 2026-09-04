@@ -199,7 +199,7 @@ O ponto fica guardado à parte do decorrido, então `Reset` volta para ele, não
 ### Acesso do admin
 
 O token no hash do link continua sendo a credencial. Usuário e senha são **opcionais** e servem para
-recuperá-lo: ao criar a sessão (ou depois, em Configurações → Acesso do admin), define-se um par; quem
+recuperá-lo: define-se um par em Configurações → Acesso do admin, dentro do painel; quem
 abrir `/admin/:id` sem token vê um formulário de login. `/overview` traz um botão **Admin** em cada card,
 que é o caminho de volta quando o link se perde.
 
@@ -294,7 +294,7 @@ e nunca deixa o total efetivo passar do máximo.
 | Método | Rota | Descrição |
 |---|---|---|
 | `GET` | `/` | Página inicial |
-| `POST` | `/api/session/new` | Cria uma nova sessão (aceita `username`/`password` opcionais) |
+| `POST` | `/api/session/new` | Cria uma nova sessão (aceita `username`/`password` opcionais, sem uso na interface) |
 | `POST` | `/api/session/:id/login` | Recupera o token de admin com usuário e senha |
 | `GET` | `/api/sessions/active` | Lista sessões ativas |
 | `DELETE` | `/api/sessions/:id` | Finaliza uma sessão |

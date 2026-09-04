@@ -12,29 +12,11 @@
     createButton.textContent = "Criando...";
 
     try {
-      const username = document.getElementById("new-user")?.value.trim() ?? "";
-      const password = document.getElementById("new-pass")?.value ?? "";
-      const feedback = document.getElementById("new-auth-feedback");
-
-      // Um sem o outro nao configura acesso nenhum e so geraria confusao
-      // depois, na hora de tentar entrar.
-      if (Boolean(username) !== Boolean(password)) {
-        if (feedback) {
-          feedback.textContent =
-            "Preencha usuário e senha, ou deixe os dois em branco.";
-        }
-        createButton.disabled = false;
-        createButton.textContent = originalText;
-        return;
-      }
-
       const response = await fetch("/api/session/new", {
         method: "POST",
         headers: {
           Accept: "application/json",
-          "Content-Type": "application/json",
         },
-        body: JSON.stringify(username ? { username, password } : {}),
       });
 
       if (!response.ok) {
