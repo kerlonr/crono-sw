@@ -47,7 +47,20 @@
         </p>
 
         <div class="hero-actions">
-          <button class="btn" id="btn-criar" type="button">Criar cronômetro</button>
+          <div class="login-optional">
+        <label class="field">
+          <span class="field-label">Usuário do admin (opcional)</span>
+          <input type="text" id="new-user" maxlength="32" autocapitalize="none" spellcheck="false"
+            autocomplete="username" placeholder="ex.: kerlon" />
+        </label>
+        <label class="field">
+          <span class="field-label">Senha</span>
+          <input type="password" id="new-pass" maxlength="200" autocomplete="new-password"
+            placeholder="para recuperar o acesso sem o link" />
+        </label>
+        <p class="field-hint" id="new-auth-feedback" aria-live="polite"></p>
+      </div>
+      <button class="btn" id="btn-criar" type="button">Criar cronômetro</button>
           <a class="btn-secondary-link" href="/overview">Ver sessões online</a>
         </div>
       </div>
@@ -85,7 +98,7 @@
     </section>
   </main>
 
-  <script src="/assets/js/index.js?v=20260429a"></script>
+  <script src="/assets/js/index.js?v=20260905f"></script>
 </body>
 
 </html>

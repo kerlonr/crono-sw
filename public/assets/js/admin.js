@@ -38,7 +38,7 @@
 
   const socket = io();
   const sessionId = window.location.pathname.split("/").pop();
-  const adminToken = window.location.hash.slice(1);
+  let adminToken = window.location.hash.slice(1);
   const legacyPresetsKey = `crono_sw_presets_${sessionId}`;
 
   const el = (id) => document.getElementById(id);
@@ -107,6 +107,16 @@
     moveDown: el("btn-move-down"),
     removeTimer: el("btn-remove-timer"),
     modelsManage: el("models-manage"),
+    loginShell: el("login-shell"),
+    loginForm: el("login-form"),
+    loginUser: el("login-user"),
+    loginPass: el("login-pass"),
+    loginFeedback: el("login-feedback"),
+    authUser: el("auth-user"),
+    authPass: el("auth-pass"),
+    saveAuth: el("btn-save-auth"),
+    clearAuth: el("btn-clear-auth"),
+    authFeedback: el("auth-feedback"),
     viewerLinks: document.querySelectorAll(".viewer-direct-link"),
   };
 
@@ -125,12 +135,89 @@
     return showError("Sessão não encontrada.");
   }
 
+  bindLogin();
+
   if (!isValidAdminToken(adminToken)) {
-    return showError("Acesso de admin inválido ou expirado.");
+    return showLogin();
   }
 
   bindEvents();
   connect();
+
+  // ----------------------------------------------------------------- login
+
+  /**
+   * O token continua sendo a credencial de fato; usuario e senha servem para
+   * recupera-lo quando o link se perde.
+   */
+  function bindLogin() {
+    ui.loginForm?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const username = ui.loginUser.value.trim();
+      const password = ui.loginPass.value;
+      if (!username || !password) {
+        return setLoginFeedback("Informe usuário e senha.");
+      }
+
+      ui.loginForm.querySelector("button").disabled = true;
+      setLoginFeedback("Entrando...");
+
+      try {
+        const response = await fetch(`/api/session/${sessionId}/login`, {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ username, password }),
+        });
+
+        if (response.status === 429) {
+          return setLoginFeedback(
+            "Muitas tentativas. Espere alguns minutos e tente de novo.",
+          );
+        }
+        if (!response.ok) {
+          return setLoginFeedback("Usuário ou senha inválidos.");
+        }
+
+        const data = await response.json();
+        if (!isValidAdminToken(data?.adminToken)) {
+          return setLoginFeedback("Resposta inválida do servidor.");
+        }
+
+        // Guarda o token no hash para recarregar sem pedir login de novo.
+        adminToken = data.adminToken;
+        window.location.hash = adminToken;
+        ui.loginShell.hidden = true;
+        ui.loginPass.value = "";
+        setLoginFeedback("");
+
+        bindEvents();
+        connect();
+      } catch {
+        setLoginFeedback("Não foi possível falar com o servidor.");
+      } finally {
+        const botao = ui.loginForm.querySelector("button");
+        if (botao) botao.disabled = false;
+      }
+    });
+  }
+
+  function showLogin() {
+    if (!ui.loginShell) {
+      return showError("Acesso de admin inválido ou expirado.");
+    }
+
+    document.body.classList.add("login-mode");
+    ui.loginShell.hidden = false;
+    ui.loginUser?.focus();
+  }
+
+  function setLoginFeedback(message) {
+    if (ui.loginFeedback) ui.loginFeedback.textContent = message;
+  }
 
   // --------------------------------------------------------------- conexao
 
@@ -227,6 +314,38 @@
     ui.moveUp?.addEventListener("click", () => moveSelected(-1));
     ui.moveDown?.addEventListener("click", () => moveSelected(1));
     ui.removeTimer?.addEventListener("click", removeSelected);
+
+    ui.saveAuth?.addEventListener("click", () => {
+      const username = ui.authUser.value.trim();
+      const password = ui.authPass.value;
+
+      if (!username || !password) {
+        return setAuthFeedback("Informe usuário e senha.");
+      }
+
+      socket.emit("session:setAuth", { username, password }, (resposta) => {
+        ui.authPass.value = "";
+        setAuthFeedback(
+          resposta?.success
+            ? `Acesso salvo. Entre com "${username}" se perder o link.`
+            : "Não foi possível salvar o acesso.",
+        );
+      });
+    });
+
+    ui.clearAuth?.addEventListener("click", () => {
+      if (!window.confirm("Remover usuário e senha desta sessão?")) return;
+
+      socket.emit("session:setAuth", {}, (resposta) => {
+        ui.authUser.value = "";
+        ui.authPass.value = "";
+        setAuthFeedback(
+          resposta?.success
+            ? "Acesso removido. Só o link controla esta sessão agora."
+            : "Não foi possível remover o acesso.",
+        );
+      });
+    });
 
     ui.accrualEnabled?.addEventListener("change", applyAccrual);
     for (const field of [
@@ -899,6 +1018,10 @@
       }
       watcher.sync(timer.status, timer.remaining);
     }
+  }
+
+  function setAuthFeedback(message) {
+    if (ui.authFeedback) ui.authFeedback.textContent = message;
   }
 
   function showFeedback(message, kind) {

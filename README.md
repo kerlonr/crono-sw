@@ -196,6 +196,24 @@ calcula o valor a partir de um horário — se o horário ainda não chegou hoje
 O ponto fica guardado à parte do decorrido, então `Reset` volta para ele, não para zero. Informar consumo
 **não** descarta o tempo ganho por regra; só o `Reset` faz isso.
 
+### Acesso do admin
+
+O token no hash do link continua sendo a credencial. Usuário e senha são **opcionais** e servem para
+recuperá-lo: ao criar a sessão (ou depois, em Configurações → Acesso do admin), define-se um par; quem
+abrir `/admin/:id` sem token vê um formulário de login. `/overview` traz um botão **Admin** em cada card,
+que é o caminho de volta quando o link se perde.
+
+Como é tratado:
+
+- a senha nunca é armazenada — fica só o `scrypt` com sal aleatório por senha (`src/auth.js`), sem
+  dependência nova nem compilação nativa
+- comparação com `timingSafeEqual`, para o tempo de resposta não denunciar acertos parciais
+- `POST /api/session/:id/login` é limitado a 15 tentativas por IP a cada 15 minutos
+- a resposta é idêntica para senha errada, usuário errado, sessão sem login e sessão inexistente, para não
+  virar um mapa de quais sessões têm credencial
+- `/api/sessions/active` expõe apenas `hasAuth`, nunca usuário, sal ou hash
+- o formulário usa `method="post"`, então nem um envio nativo (JS quebrado) leva a senha para a URL
+
 ### Persistência
 
 As sessões são gravadas em disco a cada 5 segundos e no desligamento (`STATE_FILE`, `STATE_SAVE_SECONDS`),
@@ -264,6 +282,7 @@ Todos os eventos de escrita exigem que o socket tenha entrado na sessão com o p
 | `timer:move` | admin → servidor | Move um cronômetro uma posição no board |
 | `timer:start` / `timer:pause` / `timer:reset` | admin → servidor | Controla um cronômetro pelo id |
 | `timers:bulk` | admin → servidor | Aplica `start`, `pause` ou `reset` em todos |
+| `session:setAuth` | admin → servidor | Define ou remove usuário e senha da sessão |
 | `timer:tick` | servidor → cliente | Formato antigo (um cronômetro), mantido por compatibilidade |
 
 Limites aplicados no servidor: até 12 cronômetros por sessão, título de até 24 caracteres e tempo total
@@ -275,7 +294,8 @@ e nunca deixa o total efetivo passar do máximo.
 | Método | Rota | Descrição |
 |---|---|---|
 | `GET` | `/` | Página inicial |
-| `POST` | `/api/session/new` | Cria uma nova sessão |
+| `POST` | `/api/session/new` | Cria uma nova sessão (aceita `username`/`password` opcionais) |
+| `POST` | `/api/session/:id/login` | Recupera o token de admin com usuário e senha |
 | `GET` | `/api/sessions/active` | Lista sessões ativas |
 | `DELETE` | `/api/sessions/:id` | Finaliza uma sessão |
 | `GET` | `/admin/:id` | Painel de admin |

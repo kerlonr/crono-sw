@@ -33,10 +33,38 @@
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;600;900&display=swap"
     rel="stylesheet" />
   <script src="/socket.io/socket.io.js"></script>
-  <link rel="stylesheet" href="/assets/css/admin.css?v=20260905e" />
+  <link rel="stylesheet" href="/assets/css/admin.css?v=20260905f" />
 </head>
 
 <body>
+  <div class="login-shell" id="login-shell" hidden>
+    <!-- method="post": se o JS falhar, um envio nativo nao pode levar a senha
+         para a query string, que ficaria no historico e nos logs de acesso. -->
+    <form class="login-card" id="login-form" method="post" autocomplete="on">
+      <span class="badge">Acesso do admin</span>
+      <h1 class="login-title">Entrar na sessão</h1>
+      <p class="login-copy" id="login-copy">
+        Informe o usuário e a senha definidos ao criar o cronômetro.
+      </p>
+
+      <label class="field">
+        <span class="field-label">Usuário</span>
+        <input type="text" id="login-user" name="username" autocomplete="username" maxlength="32"
+          autocapitalize="none" spellcheck="false" required />
+      </label>
+
+      <label class="field">
+        <span class="field-label">Senha</span>
+        <input type="password" id="login-pass" name="password" autocomplete="current-password"
+          maxlength="200" required />
+      </label>
+
+      <button class="btn-set btn-go" id="btn-login" type="submit">Entrar</button>
+      <p class="login-feedback" id="login-feedback" aria-live="polite"></p>
+      <a class="settings-link shortcut-link" href="/overview">Ver sessões ativas</a>
+    </form>
+  </div>
+
   <div id="admin-panel">
     <div class="desktop-layout" id="desktop-layout">
       <span class="badge">Admin Control</span>
@@ -241,6 +269,28 @@
           <div class="presets-manage-list" id="models-manage"></div>
         </div>
 
+        <div class="config-column">
+          <div class="section-label">Acesso do admin</div>
+          <div class="presets-panel-copy">
+            Com usuário e senha você recupera o controle desta sessão sem depender do link.
+          </div>
+          <label class="field">
+            <span class="field-label">Usuário</span>
+            <input type="text" id="auth-user" maxlength="32" autocapitalize="none" spellcheck="false"
+              autocomplete="off" />
+          </label>
+          <label class="field">
+            <span class="field-label">Nova senha</span>
+            <input type="password" id="auth-pass" maxlength="200" autocomplete="new-password"
+              placeholder="deixe em branco para não alterar" />
+          </label>
+          <div class="setter-actions">
+            <button class="btn-set" id="btn-save-auth" type="button">Salvar acesso</button>
+            <button class="btn-set secondary" id="btn-clear-auth" type="button">Remover</button>
+          </div>
+          <p class="field-hint" id="auth-feedback" aria-live="polite"></p>
+        </div>
+
         <div class="config-column settings-shortcuts">
           <div class="section-label">Visão geral</div>
           <a class="settings-link shortcut-link" href="/overview" target="_blank" rel="noopener noreferrer">Ver sessões
@@ -280,7 +330,7 @@
 
   <script src="/assets/js/crono-utils.js?v=20260904d"></script>
   <script src="/assets/js/finish-sound.js?v=20260429b"></script>
-  <script src="/assets/js/admin.js?v=20260905a"></script>
+  <script src="/assets/js/admin.js?v=20260905g"></script>
 </body>
 
 </html>

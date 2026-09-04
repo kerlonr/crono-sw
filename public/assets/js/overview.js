@@ -162,6 +162,18 @@
     link.rel = "noopener noreferrer";
     link.textContent = "Viewer";
 
+    // Caminho de volta para quem perdeu o link do admin: a tela de admin
+    // pede usuario e senha quando o token nao esta no endereco.
+    const adminLink = document.createElement("a");
+    adminLink.className = "card-link";
+    adminLink.href = `/admin/${session.id}`;
+    adminLink.target = "_blank";
+    adminLink.rel = "noopener noreferrer";
+    adminLink.textContent = session.hasAuth ? "Admin 🔒" : "Admin";
+    adminLink.title = session.hasAuth
+      ? "Entrar com usuário e senha"
+      : "Esta sessão não tem usuário e senha definidos";
+
     const closeButton = document.createElement("button");
     closeButton.className = "card-link card-end-button";
     closeButton.type = "button";
@@ -173,7 +185,7 @@
     note.className = "card-note";
     note.textContent = `Atualizado ${formatRelative(session.lastAccessAt)}`;
 
-    actionButtons.append(link, closeButton);
+    actionButtons.append(link, adminLink, closeButton);
     actions.append(actionButtons, note);
     top.append(identity, status);
     root.append(top, primaryLabel, timer);

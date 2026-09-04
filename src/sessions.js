@@ -49,6 +49,9 @@ function createSessionStore({
   return {
     addTimer,
     applyAccruals,
+    getSessionAuth,
+    hasAuth,
+    setSessionAuth,
     broadcastSession,
     exportSessions,
     importSessions,
@@ -96,6 +99,7 @@ function createSessionStore({
     const session = {
       id,
       adminToken: randomBytes(18).toString("hex"),
+      auth: null,
       timers: [firstTimer],
       primaryTimerId: firstTimer.id,
       interval: null,
@@ -120,6 +124,24 @@ function createSessionStore({
 
   function touchSession(session) {
     session.lastAccessAt = Date.now();
+  }
+
+  /**
+   * Guarda as credenciais ja derivadas. A senha em si nunca chega aqui.
+   * @param {object} session
+   * @param {object|null} credentials
+   */
+  function setSessionAuth(session, credentials) {
+    session.auth = credentials || null;
+    return true;
+  }
+
+  function getSessionAuth(session) {
+    return session.auth || null;
+  }
+
+  function hasAuth(session) {
+    return Boolean(session.auth);
   }
 
   // Uma aula de 80 horas pode ficar horas em pausa sem gerar tick nenhum, entao
@@ -206,6 +228,7 @@ function createSessionStore({
         id: session.id,
         ...buildSessionState(session),
         status: getSessionStatus(session),
+        hasAuth: hasAuth(session),
         createdAt: session.createdAt,
         lastAccessAt: session.lastAccessAt,
       }))
@@ -253,6 +276,7 @@ function createSessionStore({
       .map((session) => ({
         id: session.id,
         adminToken: session.adminToken,
+        auth: session.auth,
         primaryTimerId: session.primaryTimerId,
         createdAt: session.createdAt,
         lastAccessAt: session.lastAccessAt,
@@ -313,6 +337,7 @@ function createSessionStore({
       const session = {
         id: item.id,
         adminToken: item.adminToken,
+        auth: sanitizeStoredAuth(item.auth),
         timers,
         primaryTimerId: timers.some((t) => t.id === item.primaryTimerId)
           ? item.primaryTimerId
@@ -695,6 +720,18 @@ function createSessionStore({
    * (um cronometro alimentando a si mesmo cresceria sem limite).
    * @returns {object|null} regra normalizada, ou `null` para desligar.
    */
+  /** Credenciais vindas do snapshot: so aceita o formato ja derivado. */
+  function sanitizeStoredAuth(value) {
+    if (!value || typeof value !== "object") return null;
+
+    const { username, salt, hash } = value;
+    if (typeof username !== "string" || !username) return null;
+    if (typeof salt !== "string" || !/^[a-f0-9]+$/i.test(salt)) return null;
+    if (typeof hash !== "string" || !/^[a-f0-9]+$/i.test(hash)) return null;
+
+    return { username, salt, hash };
+  }
+
   function sanitizeAccrual(session, timerId, value) {
     if (!value || typeof value !== "object") return null;
 

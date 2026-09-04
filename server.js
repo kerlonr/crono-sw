@@ -22,6 +22,11 @@ const {
   parseWebhookPayload,
   tokensMatch,
 } = require("./src/security");
+const {
+  createCredentials,
+  sanitizeUsername,
+  verifyCredentials,
+} = require("./src/auth");
 const { createSnapshotStore } = require("./src/persistence");
 const { createSessionStore } = require("./src/sessions");
 
@@ -88,6 +93,9 @@ const globalLimiter = createLimiter(15 * 60 * 1000, 250);
 const createSessionLimiter = createLimiter(10 * 60 * 1000, 30);
 const activeSessionsLimiter = createLimiter(60 * 1000, 120);
 const webhookLimiter = createLimiter(15 * 60 * 1000, 20);
+// Tentativas de login sao caras de propósito (scrypt) e limitadas por IP,
+// para forca bruta nao valer a pena mesmo com senha curta.
+const loginLimiter = createLimiter(15 * 60 * 1000, 15);
 
 app.disable("x-powered-by");
 
@@ -230,19 +238,71 @@ app.use(
   }),
 );
 
-app.post("/api/session/new", createSessionLimiter, (request, response) => {
-  const session = sessionStore.createSession();
-  logEvent("session_created", {
-    sessionId: session.id,
-    totalTime: formatTimerMs(sessionStore.getPrimaryTimer(session)?.totalTime),
+app.post(
+  "/api/session/new",
+  createSessionLimiter,
+  async (request, response) => {
+    const session = sessionStore.createSession();
+
+    // Usuario e senha sao opcionais: sem eles a sessao segue funcionando
+    // apenas pelo link com o token, como antes.
+    const { username, password } = request.body || {};
+    let credentials = null;
+
+    if (username || password) {
+      credentials = await createCredentials(username, password);
+      if (!credentials) {
+        sessionStore.deleteSession(session.id);
+        return response.status(400).json({ error: "invalid_credentials" });
+      }
+      sessionStore.setSessionAuth(session, credentials);
+    }
+
+    logEvent("session_created", {
+      sessionId: session.id,
+      totalTime: formatTimerMs(sessionStore.getPrimaryTimer(session)?.totalTime),
+      withLogin: Boolean(credentials),
+      ip: getRequestIp(request),
+      userAgent: request.get("user-agent") || "unknown",
+    });
+
+    return response.status(201).json({
+      id: session.id,
+      adminToken: session.adminToken,
+    });
+  },
+);
+
+/**
+ * Recupera o token de admin com usuario e senha - o caminho para quem perdeu
+ * o link. A resposta nao distingue usuario errado de senha errada, e sessao
+ * sem login configurado responde igual, para nao virar um mapa de quais
+ * sessoes tem credencial.
+ */
+app.post("/api/session/:id/login", loginLimiter, async (request, response) => {
+  const sessionId = request.params.id;
+  const { username, password } = request.body || {};
+  const negar = () =>
+    response.status(401).json({ error: "invalid_credentials" });
+
+  if (!sessionStore.isValidSessionId(sessionId)) return negar();
+
+  const session = sessionStore.getSession(sessionId);
+  if (!session) return negar();
+
+  const credentials = sessionStore.getSessionAuth(session);
+  const ok = await verifyCredentials(credentials, username, password);
+
+  logEvent(ok ? "login_ok" : "login_denied", {
+    sessionId,
+    username: sanitizeUsername(username) || "unknown",
     ip: getRequestIp(request),
-    userAgent: request.get("user-agent") || "unknown",
   });
 
-  response.status(201).json({
-    id: session.id,
-    adminToken: session.adminToken,
-  });
+  if (!ok) return negar();
+
+  sessionStore.touchSession(session);
+  return response.json({ adminToken: session.adminToken });
 });
 
 app.get("/api/sessions/active", activeSessionsLimiter, (_request, response) => {
@@ -362,6 +422,42 @@ io.on("connection", (socket) => {
       if (callback) callback({ success: true });
     },
   );
+
+  socket.on("session:setAuth", async (payload, callback) => {
+    const session = sessionStore.getAdminSession(socket);
+    const responder = (resultado) => {
+      if (typeof callback === "function") callback(resultado);
+    };
+
+    if (!session) return responder({ success: false, reason: "unauthorized" });
+
+    const { username, password } = payload || {};
+
+    if (!username && !password) {
+      sessionStore.setSessionAuth(session, null);
+      logEvent(
+        "auth_cleared",
+        buildSocketLogDetails(socket, { sessionId: session.id }),
+      );
+      return responder({ success: true, hasAuth: false });
+    }
+
+    const credentials = await createCredentials(username, password);
+    if (!credentials) {
+      return responder({ success: false, reason: "invalid_credentials" });
+    }
+
+    sessionStore.setSessionAuth(session, credentials);
+    logEvent(
+      "auth_set",
+      buildSocketLogDetails(socket, {
+        sessionId: session.id,
+        username: credentials.username,
+      }),
+    );
+
+    return responder({ success: true, hasAuth: true });
+  });
 
   socket.on("timer:add", (payload, callback) => {
     const session = sessionStore.getAdminSession(socket);
