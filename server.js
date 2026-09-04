@@ -48,6 +48,8 @@ const sessionStore = createSessionStore({
   maxTimerMs: config.MAX_TIMER_MS,
   maxTimerNameLength: config.MAX_TIMER_NAME_LENGTH,
   maxTimersPerSession: config.MAX_TIMERS_PER_SESSION,
+  minAccrualAddMs: config.MIN_ACCRUAL_ADD_MS,
+  minAccrualEveryMs: config.MIN_ACCRUAL_EVERY_MS,
   sessionIdPattern: config.SESSION_ID_PATTERN,
   sessionTtlMs: config.SESSION_TTL_MS,
   timerIdPattern: config.TIMER_ID_PATTERN,
@@ -571,8 +573,8 @@ function resolveTimerId(session, timerId) {
 function readTimerPayload(payload) {
   if (!payload || typeof payload !== "object") return {};
 
-  const { direction, name, totalTime } = payload;
-  return { direction, name, totalTime };
+  const { accrual, direction, name, offsetMs, totalTime } = payload;
+  return { accrual, direction, name, offsetMs, totalTime };
 }
 
 function getPrimaryRemaining(session) {

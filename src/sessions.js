@@ -11,9 +11,13 @@ const { randomBytes } = require("crypto");
 const {
   buildTimerState,
   createTimer,
+  getElapsed,
   getRemaining,
+  getStartElapsed,
+  getTotalTime,
   isTimerFinished,
   pauseTimer,
+  resetAccrual,
   resetTimer,
   sanitizeDirection,
   sanitizeTimerName,
@@ -33,6 +37,8 @@ function createSessionStore({
   maxTimerMs,
   maxTimerNameLength,
   maxTimersPerSession,
+  minAccrualAddMs,
+  minAccrualEveryMs,
   sessionIdPattern,
   sessionTtlMs,
   timerIdPattern,
@@ -41,6 +47,7 @@ function createSessionStore({
 
   return {
     addTimer,
+    applyAccruals,
     broadcastSession,
     buildSessionState,
     bulkTimerAction,
@@ -64,6 +71,7 @@ function createSessionStore({
     pauseSessionTimer,
     removeTimer,
     resetSessionTimer,
+    sanitizeAccrual,
     sanitizeTimerMs,
     setPrimaryTimer,
     startSessionTimer,
@@ -275,6 +283,7 @@ function createSessionStore({
       return;
     }
 
+    applyAccruals(session);
     finishDueTimers(session);
     syncSessionInterval(session);
     touchSession(session);
@@ -287,6 +296,49 @@ function createSessionStore({
     touchSession(session);
     target.emit("session:state", buildSessionState(session));
     target.emit("timer:tick", buildLegacyState(session));
+  }
+
+  /**
+   * Concede o tempo ganho pelas regras de `accrual`.
+   *
+   * O contador de concessoes (`grantedCount`) e recalculado do decorrido da
+   * fonte a cada tick, entao tick perdido, atraso ou reconexao nao duplicam
+   * nem pulam um ganho.
+   *
+   * @returns {boolean} `true` se algum cronometro ganhou tempo agora.
+   */
+  function applyAccruals(session) {
+    let changed = false;
+
+    for (const timer of session.timers) {
+      const rule = timer.accrual;
+      if (!rule) continue;
+
+      const source = session.timers.find(
+        (item) => item.id === rule.sourceTimerId,
+      );
+      if (!source) continue;
+
+      const earned = Math.floor(getElapsed(source) / rule.everyMs);
+      if (earned === rule.grantedCount) continue;
+
+      if (earned > rule.grantedCount) {
+        const ganho = (earned - rule.grantedCount) * rule.addMs;
+        const teto = Math.max(0, maxTimerMs - timer.totalTime);
+        timer.bonusMs = Math.min(timer.bonusMs + ganho, teto);
+
+        // Um intervalo que tinha zerado volta a ficar disponivel, pausado,
+        // para o admin decidir quando usar o tempo recem-ganho.
+        if (timer.status === "finished" && getRemaining(timer) > 0) {
+          timer.status = "paused";
+        }
+      }
+
+      rule.grantedCount = earned;
+      changed = true;
+    }
+
+    return changed;
   }
 
   function finishDueTimers(session) {
@@ -367,6 +419,14 @@ function createSessionStore({
       session.primaryTimerId = session.timers[0]?.id ?? null;
     }
 
+    // Uma regra sem fonte nunca mais concederia nada; melhor desliga-la do
+    // que deixar o admin com uma configuracao morta na tela.
+    for (const restante of session.timers) {
+      if (restante.accrual?.sourceTimerId === timerId) {
+        restante.accrual = null;
+      }
+    }
+
     syncSessionInterval(session);
     return true;
   }
@@ -376,11 +436,20 @@ function createSessionStore({
    * O tempo total so muda com o cronometro fora do "running" e zera a
    * contagem, evitando um estado em que o decorrido ja passou do novo total.
    */
-  function updateTimer(session, timerId, { direction, name, totalTime } = {}) {
+  function updateTimer(
+    session,
+    timerId,
+    { accrual, direction, name, offsetMs, totalTime } = {},
+  ) {
     const timer = getTimer(session, timerId);
     if (!timer) return false;
 
     let changed = false;
+
+    if (accrual !== undefined) {
+      timer.accrual = sanitizeAccrual(session, timerId, accrual);
+      changed = true;
+    }
 
     if (typeof name === "string") {
       timer.name = sanitizeTimerName(name, maxTimerNameLength);
@@ -396,12 +465,37 @@ function createSessionStore({
       const safeTotalTime = sanitizeTimerMs(totalTime);
       if (safeTotalTime !== null) {
         timer.totalTime = safeTotalTime;
+        // O ponto de partida nao pode sobrar acima da nova duracao.
+        timer.offsetMs = Math.min(timer.offsetMs, Math.max(0, safeTotalTime - 1000));
+        resetTimer(timer);
+        changed = true;
+      }
+    }
+
+    if (offsetMs !== undefined && timer.status !== "running") {
+      const safeOffset = sanitizeOffsetMs(timer, offsetMs);
+      if (safeOffset !== null) {
+        timer.offsetMs = safeOffset;
         resetTimer(timer);
         changed = true;
       }
     }
 
     return changed;
+  }
+
+  /**
+   * Ponto de partida valido: de zero ate um segundo antes do total, para que
+   * o cronometro sempre tenha ao menos um segundo para contar.
+   */
+  function sanitizeOffsetMs(timer, value) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return null;
+
+    const safeValue = Math.trunc(parsed);
+    if (safeValue < 0 || safeValue > getTotalTime(timer) - 1000) return null;
+
+    return safeValue;
   }
 
   function setPrimaryTimer(session, timerId) {
@@ -447,6 +541,15 @@ function createSessionStore({
     if (!timer) return false;
 
     resetTimer(timer);
+
+    // Zerar a fonte tambem zera o que ela concedeu: sem isso o bonus da
+    // rodada anterior somaria com o da proxima.
+    for (const dependente of session.timers) {
+      if (dependente.accrual?.sourceTimerId === timerId) {
+        resetAccrual(dependente);
+      }
+    }
+
     syncSessionInterval(session);
     return true;
   }
@@ -479,6 +582,35 @@ function createSessionStore({
   }
 
   // ------------------------------------------------------------- validacoes
+
+  /**
+   * Valida uma regra de ganho. Recusa fonte inexistente e auto-referencia
+   * (um cronometro alimentando a si mesmo cresceria sem limite).
+   * @returns {object|null} regra normalizada, ou `null` para desligar.
+   */
+  function sanitizeAccrual(session, timerId, value) {
+    if (!value || typeof value !== "object") return null;
+
+    const sourceTimerId = value.sourceTimerId;
+    if (sourceTimerId === timerId) return null;
+    if (!getTimer(session, sourceTimerId)) return null;
+
+    const everyMs = sanitizeSpan(value.everyMs, minAccrualEveryMs);
+    const addMs = sanitizeSpan(value.addMs, minAccrualAddMs);
+    if (everyMs === null || addMs === null) return null;
+
+    return { sourceTimerId, everyMs, addMs, grantedCount: 0 };
+  }
+
+  function sanitizeSpan(value, minimo) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return null;
+
+    const safeValue = Math.trunc(parsed);
+    if (safeValue < minimo || safeValue > maxTimerMs) return null;
+
+    return safeValue;
+  }
 
   function sanitizeTimerMs(value) {
     const parsed = Number(value);

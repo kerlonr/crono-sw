@@ -16,6 +16,10 @@ const SESSION_CLEANUP_MS =
 const MAX_TIMER_MS = 100 * 60 * 60 * 1000;
 const DEFAULT_TIMER_MS = 5 * 60 * 1000;
 const MAX_TIMERS_PER_SESSION = 12;
+// Piso da regra de ganho: evita uma regra de 1s concedendo milhares de
+// vezes ao longo de uma aula de 80 horas.
+const MIN_ACCRUAL_EVERY_MS = 60 * 1000;
+const MIN_ACCRUAL_ADD_MS = 1000;
 const MAX_TIMER_NAME_LENGTH = 24;
 const SESSION_ID_PATTERN = /^[a-f0-9]{8}$/i;
 const ADMIN_TOKEN_PATTERN = /^[a-f0-9]{36}$/i;
@@ -37,6 +41,8 @@ module.exports = {
   MAX_TIMER_MS,
   MAX_TIMER_NAME_LENGTH,
   MAX_TIMERS_PER_SESSION,
+  MIN_ACCRUAL_ADD_MS,
+  MIN_ACCRUAL_EVERY_MS,
   PORT,
   PUBLIC_DIR,
   SESSION_CLEANUP_MS,

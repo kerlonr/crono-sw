@@ -140,8 +140,43 @@
       remaining,
       elapsed: Math.min(totalTime, sanitizeMs(source.elapsed)),
       pct: sanitizePct(source.pct),
+      baseTotalTime: sanitizeMs(source.baseTotalTime ?? source.totalTime),
+      bonusMs: sanitizeMs(source.bonusMs),
+      offsetMs: sanitizeMs(source.offsetMs),
+      accrual: sanitizeAccrual(source.accrual),
       index,
     };
+  }
+
+  /**
+   * Normaliza a regra de ganho recebida do servidor.
+   * @param {unknown} raw
+   * @returns {object|null}
+   */
+  function sanitizeAccrual(raw) {
+    if (!raw || typeof raw !== "object") return null;
+    if (!isValidTimerId(raw.sourceTimerId)) return null;
+
+    const everyMs = sanitizeMs(raw.everyMs);
+    const addMs = sanitizeMs(raw.addMs);
+    if (everyMs <= 0 || addMs <= 0) return null;
+
+    return {
+      sourceTimerId: raw.sourceTimerId,
+      everyMs,
+      addMs,
+      grantedCount: Math.max(0, Math.trunc(Number(raw.grantedCount) || 0)),
+    };
+  }
+
+  /**
+   * Texto do tempo ja ganho por regra, ou "" quando nao houve ganho.
+   * @param {object} timer
+   * @returns {string}
+   */
+  function getBonusLabel(timer) {
+    if (!timer.bonusMs) return "";
+    return `+${formatCompactDuration(timer.bonusMs)} ganhos`;
   }
 
   /**
@@ -199,6 +234,17 @@
   }
 
   /**
+   * Frase legivel da regra de ganho, para confirmar o que foi configurado.
+   * @param {object} rule
+   * @param {string} sourceName
+   * @returns {string}
+   */
+  function getAccrualLabel(rule, sourceName) {
+    if (!rule) return "";
+    return `A cada ${formatCompactDuration(rule.everyMs)} de ${sourceName}, soma ${formatCompactDuration(rule.addMs)}`;
+  }
+
+  /**
    * @param {unknown} value
    * @returns {boolean} `true` se for um id de sessao valido.
    */
@@ -228,6 +274,8 @@
     MAX_TIMER_NAME_LENGTH,
     formatCompactDuration,
     formatTime,
+    getAccrualLabel,
+    getBonusLabel,
     getDisplayMs,
     getPhase,
     getTimerLabel,

@@ -9,6 +9,8 @@ progressivo e um intervalo de 25 minutos — todos controlados na mesma tela.
 O projeto permite:
 
 - criar uma sessão com quantos cronômetros forem necessários (até 12)
+- fazer um cronômetro ganhar tempo automaticamente conforme outro avança
+- iniciar a contagem de um ponto qualquer, e não do zero
 - dar um título a cada cronômetro e escolher entre contagem regressiva ou progressiva
 - controlar cada cronômetro individualmente ou todos de uma vez pela tela de admin
 - eleger um cronômetro como destaque, que aparece grande no viewer
@@ -185,6 +187,22 @@ Cada cronômetro tem título, modo e tempo total:
 Os dois modos terminam no mesmo ponto (quando o decorrido atinge o total) e usam a mesma escala de cores:
 verde no começo, amarelo abaixo de 40%, vermelho abaixo de 20% e piscando abaixo de 10%.
 
+### Ponto de partida
+
+`Começar em` faz o cronômetro partir de um ponto em vez do zero — útil quando a contagem já está em
+andamento (por exemplo, a aula já corre há 05:15:00). O ponto fica guardado à parte do decorrido, então
+`Reset` volta para ele, não para zero.
+
+### Ganhar tempo automaticamente
+
+Um cronômetro pode somar tempo conforme outro avança: *a cada 1h de Aula, somar 5 min ao Break*. O tempo
+ganho fica em `bonusMs`, separado da duração configurada, e a tela mostra os dois ("25 min + 15 min ganhos").
+
+O ganho é recalculado do decorrido da fonte a cada tick, então tick perdido, atraso ou reconexão não
+duplicam nem pulam uma concessão — um salto de 4 horas concede as 4 de uma vez. Um intervalo que já tinha
+zerado volta a ficar disponível, pausado, ao ganhar tempo novo. Zerar a fonte descarta o que ela concedeu,
+para o bônus de uma rodada não somar com o da seguinte.
+
 O board tem ainda `Iniciar todos`, `Pausar todos` e `Zerar todos`. Os cronômetros são independentes entre si:
 começar o intervalo não pausa os demais.
 
@@ -229,7 +247,7 @@ Todos os eventos de escrita exigem que o socket tenha entrado na sessão com o p
 | `session:closed` | servidor → cliente | A sessão foi encerrada |
 | `timer:add` | admin → servidor | Cria um cronômetro; responde com o id ou `limit_reached` |
 | `timer:remove` | admin → servidor | Remove um cronômetro |
-| `timer:update` | admin → servidor | Altera título, modo e/ou tempo total |
+| `timer:update` | admin → servidor | Altera título, modo, tempo total, ponto de partida e/ou regra de ganho |
 | `timer:setPrimary` | admin → servidor | Define o destaque do viewer |
 | `timer:move` | admin → servidor | Move um cronômetro uma posição no board |
 | `timer:start` / `timer:pause` / `timer:reset` | admin → servidor | Controla um cronômetro pelo id |
@@ -237,7 +255,8 @@ Todos os eventos de escrita exigem que o socket tenha entrado na sessão com o p
 | `timer:tick` | servidor → cliente | Formato antigo (um cronômetro), mantido por compatibilidade |
 
 Limites aplicados no servidor: até 12 cronômetros por sessão, título de até 24 caracteres e tempo total
-entre 1 segundo e 100 horas.
+entre 1 segundo e 100 horas. A regra de ganho exige intervalo de no mínimo 1 minuto, recusa auto-referência
+e nunca deixa o total efetivo passar do máximo.
 
 ## Endpoints Principais
 

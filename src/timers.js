@@ -9,6 +9,15 @@
  * cresce e `remaining = totalTime - elapsed`. A direcao muda apenas qual dos
  * dois valores a tela exibe e o rotulo do total ("duracao" x "meta"), o que
  * evita dois caminhos de calculo e mantem o termino no mesmo ponto.
+ *
+ * Um cronometro pode ganhar tempo automaticamente de outro (`accrual`): a cada
+ * X de contagem da fonte, soma Y ao seu proprio limite. O ganho vai para
+ * `bonusMs`, separado de `totalTime`, para que a duracao configurada continue
+ * visivel e o reset volte ao valor original sem precisar lembrar dele.
+ *
+ * `offsetMs` e o ponto de partida: uma aula que ja corre ha 5h15 comeca a
+ * contar dali, nao do zero. Ele fica separado de `elapsed` para que o Reset
+ * volte ao ponto de partida em vez de zerar - zerar perderia a informacao.
  */
 const { randomBytes } = require("crypto");
 
@@ -20,8 +29,11 @@ module.exports = {
   createTimer,
   getElapsed,
   getRemaining,
+  getStartElapsed,
+  getTotalTime,
   isTimerFinished,
   pauseTimer,
+  resetAccrual,
   resetTimer,
   sanitizeDirection,
   sanitizeTimerName,
@@ -52,6 +64,9 @@ function createTimer({
     elapsed: 0,
     startTime: null,
     totalTime,
+    offsetMs: 0,
+    bonusMs: 0,
+    accrual: null,
   };
 }
 
@@ -109,12 +124,31 @@ function getElapsed(timer) {
 }
 
 /**
+ * Limite efetivo: a duracao configurada mais o que foi ganho por regra.
+ * @param {object} timer
+ * @returns {number}
+ */
+function getTotalTime(timer) {
+  return timer.totalTime + timer.bonusMs;
+}
+
+/**
+ * Decorrido inicial: o ponto de partida, limitado ao total para nunca nascer
+ * ja estourado caso a duracao tenha encolhido depois.
+ * @param {object} timer
+ * @returns {number}
+ */
+function getStartElapsed(timer) {
+  return Math.min(timer.offsetMs, getTotalTime(timer));
+}
+
+/**
  * Tempo que falta para o cronometro terminar, nunca negativo.
  * @param {object} timer
  * @returns {number}
  */
 function getRemaining(timer) {
-  return Math.max(0, timer.totalTime - getElapsed(timer));
+  return Math.max(0, getTotalTime(timer) - getElapsed(timer));
 }
 
 /**
@@ -155,13 +189,27 @@ function pauseTimer(timer) {
 }
 
 /**
- * Volta ao inicio mantendo nome, direcao e total.
+ * Volta ao inicio mantendo nome, direcao, total configurado e a regra de
+ * ganho. O tempo ja ganho e descartado: reset e recomeco limpo, senao o
+ * bonus da rodada anterior entraria somado na proxima.
  * @param {object} timer
  */
 function resetTimer(timer) {
-  timer.elapsed = 0;
+  resetAccrual(timer);
+  timer.elapsed = getStartElapsed(timer);
   timer.startTime = null;
   timer.status = "stopped";
+}
+
+/**
+ * Descarta o tempo ganho e zera o contador de concessoes.
+ * @param {object} timer
+ */
+function resetAccrual(timer) {
+  timer.bonusMs = 0;
+  if (timer.accrual) {
+    timer.accrual.grantedCount = 0;
+  }
 }
 
 /**
@@ -171,6 +219,7 @@ function resetTimer(timer) {
  * @returns {object}
  */
 function buildTimerState(timer) {
+  const totalTime = getTotalTime(timer);
   const remaining = getRemaining(timer);
 
   return {
@@ -178,9 +227,22 @@ function buildTimerState(timer) {
     name: timer.name,
     direction: timer.direction,
     status: timer.status,
-    totalTime: timer.totalTime,
-    elapsed: Math.min(timer.totalTime, getElapsed(timer)),
+    // `totalTime` vai efetivo porque e o que a tela mede; `baseTotalTime` e
+    // `bonusMs` acompanham para a tela poder mostrar "25min + 15min ganhos".
+    totalTime,
+    baseTotalTime: timer.totalTime,
+    bonusMs: timer.bonusMs,
+    offsetMs: timer.offsetMs,
+    elapsed: Math.min(totalTime, getElapsed(timer)),
     remaining,
-    pct: timer.totalTime > 0 ? remaining / timer.totalTime : 1,
+    pct: totalTime > 0 ? remaining / totalTime : 1,
+    accrual: timer.accrual
+      ? {
+          sourceTimerId: timer.accrual.sourceTimerId,
+          everyMs: timer.accrual.everyMs,
+          addMs: timer.accrual.addMs,
+          grantedCount: timer.accrual.grantedCount,
+        }
+      : null,
   };
 }

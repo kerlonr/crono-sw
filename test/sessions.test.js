@@ -11,6 +11,8 @@ const MAX_TIMER_MS = 100 * 60 * 60 * 1000;
 const MAX_TIMERS_PER_SESSION = 12;
 const MAX_TIMER_NAME_LENGTH = 24;
 const SESSION_TTL_MS = 60 * 1000;
+const MIN_ACCRUAL_EVERY_MS = 60 * 1000;
+const MIN_ACCRUAL_ADD_MS = 1000;
 
 /**
  * Coleta as emissoes para inspecao, no lugar do io real do Socket.IO.
@@ -40,6 +42,8 @@ function createStore(io = createFakeIo()) {
     maxTimerMs: MAX_TIMER_MS,
     maxTimerNameLength: MAX_TIMER_NAME_LENGTH,
     maxTimersPerSession: MAX_TIMERS_PER_SESSION,
+    minAccrualAddMs: MIN_ACCRUAL_ADD_MS,
+    minAccrualEveryMs: MIN_ACCRUAL_EVERY_MS,
     sessionIdPattern: SESSION_ID_PATTERN,
     sessionTtlMs: SESSION_TTL_MS,
     timerIdPattern: TIMER_ID_PATTERN,
@@ -379,6 +383,275 @@ describe("expiracao", () => {
     assert.equal(listed.primaryTimerId, session.timers[0].id);
 
     stopSession(store, session);
+  });
+});
+
+describe("ponto de partida", () => {
+  const HOUR = 60 * 60 * 1000;
+  const MIN = 60 * 1000;
+
+  /** Cenario do usuario: meta de 80h com a aula ja correndo ha 5h15. */
+  function cenario() {
+    const { store } = createStore();
+    const session = store.createSession();
+    const timer = session.timers[0];
+    store.updateTimer(session, timer.id, {
+      name: "Decorrido",
+      direction: "up",
+      totalTime: 80 * HOUR,
+    });
+    return { store, session, timer };
+  }
+
+  it("parte do ponto informado em vez do zero", () => {
+    const { store, session, timer } = cenario();
+
+    assert.equal(
+      store.updateTimer(session, timer.id, { offsetMs: 5 * HOUR + 15 * MIN }),
+      true,
+    );
+
+    assert.equal(timer.elapsed, 5 * HOUR + 15 * MIN);
+    assert.equal(store.getRemaining(timer), 80 * HOUR - (5 * HOUR + 15 * MIN));
+
+    const estado = store
+      .buildSessionState(session)
+      .timers.find((t) => t.id === timer.id);
+    assert.equal(estado.elapsed, 5 * HOUR + 15 * MIN);
+    assert.equal(estado.offsetMs, 5 * HOUR + 15 * MIN);
+  });
+
+  it("continua contando a partir dali quando inicia", () => {
+    const { store, session, timer } = cenario();
+    store.updateTimer(session, timer.id, { offsetMs: 5 * HOUR });
+    store.startSessionTimer(session, timer.id);
+
+    timer.startTime = Date.now() - 30 * MIN;
+    const decorrido = store.buildSessionState(session).timers[0].elapsed;
+
+    assert.ok(
+      Math.abs(decorrido - (5 * HOUR + 30 * MIN)) < 100,
+      `esperava ~5h30, veio ${decorrido}ms`,
+    );
+
+    stopSession(store, session);
+  });
+
+  it("Reset volta ao ponto de partida, nao a zero", () => {
+    const { store, session, timer } = cenario();
+    store.updateTimer(session, timer.id, { offsetMs: 5 * HOUR + 15 * MIN });
+
+    store.startSessionTimer(session, timer.id);
+    timer.startTime = Date.now() - 2 * HOUR;
+    store.resetSessionTimer(session, timer.id);
+
+    assert.equal(timer.elapsed, 5 * HOUR + 15 * MIN);
+    assert.equal(timer.status, "stopped");
+  });
+
+  it("recusa ponto de partida fora da faixa e enquanto roda", () => {
+    const { store, session, timer } = cenario();
+
+    assert.equal(store.updateTimer(session, timer.id, { offsetMs: -1 }), false);
+    assert.equal(
+      store.updateTimer(session, timer.id, { offsetMs: 80 * HOUR }),
+      false,
+      "nao pode partir exatamente no total",
+    );
+
+    store.startSessionTimer(session, timer.id);
+    assert.equal(
+      store.updateTimer(session, timer.id, { offsetMs: HOUR }),
+      false,
+      "rodando nao muda",
+    );
+    stopSession(store, session);
+  });
+
+  it("encolher a duracao puxa o ponto de partida junto", () => {
+    const { store, session, timer } = cenario();
+    store.updateTimer(session, timer.id, { offsetMs: 5 * HOUR });
+
+    store.updateTimer(session, timer.id, { totalTime: 2 * HOUR });
+
+    assert.ok(
+      timer.offsetMs <= 2 * HOUR - 1000,
+      `offset sobrou acima do total: ${timer.offsetMs}`,
+    );
+    assert.ok(store.getRemaining(timer) > 0, "precisa sobrar tempo para contar");
+  });
+
+  it("zerar o ponto de partida devolve a contagem ao zero", () => {
+    const { store, session, timer } = cenario();
+    store.updateTimer(session, timer.id, { offsetMs: 5 * HOUR });
+    store.updateTimer(session, timer.id, { offsetMs: 0 });
+
+    assert.equal(timer.offsetMs, 0);
+    assert.equal(timer.elapsed, 0);
+  });
+});
+
+describe("regra de ganho de tempo", () => {
+  const HOUR = 60 * 60 * 1000;
+  const MIN = 60 * 1000;
+
+  /** Aula de 80h que concede 5min de intervalo a cada hora corrida. */
+  function cenarioAula() {
+    const { store } = createStore();
+    const session = store.createSession();
+    const aula = session.timers[0];
+    store.updateTimer(session, aula.id, { name: "Aula", totalTime: 80 * HOUR });
+
+    const intervalo = store.addTimer(session, {
+      name: "Break",
+      totalTime: 25 * MIN,
+    });
+    store.updateTimer(session, intervalo.id, {
+      accrual: { sourceTimerId: aula.id, everyMs: HOUR, addMs: 5 * MIN },
+    });
+
+    return { store, session, aula, intervalo };
+  }
+
+  /** Coloca a fonte com um decorrido simulado, sem esperar o tempo real. */
+  function correr(aula, ms) {
+    aula.status = "running";
+    aula.startTime = Date.now() - ms;
+  }
+
+  it("concede 5min a cada hora corrida da fonte", () => {
+    const { store, session, aula, intervalo } = cenarioAula();
+
+    correr(aula, 3 * HOUR + 5 * MIN);
+    store.applyAccruals(session);
+
+    assert.equal(intervalo.bonusMs, 15 * MIN);
+    assert.equal(intervalo.totalTime, 25 * MIN, "a duracao configurada nao muda");
+    assert.equal(store.getRemaining(intervalo), 40 * MIN);
+  });
+
+  it("nao concede antes de fechar o intervalo da regra", () => {
+    const { store, session, aula, intervalo } = cenarioAula();
+
+    correr(aula, 59 * MIN);
+    store.applyAccruals(session);
+
+    assert.equal(intervalo.bonusMs, 0);
+  });
+
+  it("e idempotente: reaplicar no mesmo instante nao duplica", () => {
+    const { store, session, aula, intervalo } = cenarioAula();
+
+    correr(aula, 2 * HOUR);
+    store.applyAccruals(session);
+    store.applyAccruals(session);
+    store.applyAccruals(session);
+
+    assert.equal(intervalo.bonusMs, 10 * MIN);
+  });
+
+  it("recupera ganhos de ticks perdidos de uma vez so", () => {
+    const { store, session, aula, intervalo } = cenarioAula();
+
+    // Salto de 4 horas entre um tick e outro, como numa suspensao da maquina.
+    correr(aula, 4 * HOUR);
+    store.applyAccruals(session);
+
+    assert.equal(intervalo.bonusMs, 20 * MIN);
+    assert.equal(intervalo.accrual.grantedCount, 4);
+  });
+
+  it("um intervalo ja finalizado volta a ficar disponivel ao ganhar tempo", () => {
+    const { store, session, aula, intervalo } = cenarioAula();
+
+    intervalo.status = "finished";
+    intervalo.elapsed = 25 * MIN;
+
+    correr(aula, HOUR);
+    store.applyAccruals(session);
+
+    assert.equal(intervalo.status, "paused");
+    assert.equal(store.getRemaining(intervalo), 5 * MIN);
+  });
+
+  it("zerar a fonte descarta o bonus que ela concedeu", () => {
+    const { store, session, aula, intervalo } = cenarioAula();
+
+    correr(aula, 3 * HOUR);
+    store.applyAccruals(session);
+    assert.equal(intervalo.bonusMs, 15 * MIN);
+
+    store.resetSessionTimer(session, aula.id);
+
+    assert.equal(intervalo.bonusMs, 0);
+    assert.equal(intervalo.accrual.grantedCount, 0);
+    assert.equal(intervalo.accrual.sourceTimerId, aula.id, "a regra continua ligada");
+  });
+
+  it("remover a fonte desliga a regra em vez de deixa-la morta", () => {
+    const { store, session, aula, intervalo } = cenarioAula();
+
+    store.removeTimer(session, aula.id);
+
+    assert.equal(intervalo.accrual, null);
+  });
+
+  it("recusa auto-referencia, fonte inexistente e valores fora do limite", () => {
+    const { store, session, aula, intervalo } = cenarioAula();
+
+    const regra = { sourceTimerId: aula.id, everyMs: HOUR, addMs: 5 * MIN };
+
+    store.updateTimer(session, intervalo.id, {
+      accrual: { ...regra, sourceTimerId: intervalo.id },
+    });
+    assert.equal(intervalo.accrual, null, "auto-referencia");
+
+    store.updateTimer(session, intervalo.id, {
+      accrual: { ...regra, sourceTimerId: "ffffff" },
+    });
+    assert.equal(intervalo.accrual, null, "fonte inexistente");
+
+    store.updateTimer(session, intervalo.id, {
+      accrual: { ...regra, everyMs: 1000 },
+    });
+    assert.equal(intervalo.accrual, null, "intervalo abaixo do minimo");
+
+    store.updateTimer(session, intervalo.id, { accrual: null });
+    assert.equal(intervalo.accrual, null, "null desliga a regra");
+  });
+
+  it("nao deixa o total efetivo passar do maximo do servidor", () => {
+    const { store, session, aula, intervalo } = cenarioAula();
+
+    store.updateTimer(session, intervalo.id, { totalTime: 99 * HOUR });
+    store.updateTimer(session, intervalo.id, {
+      accrual: { sourceTimerId: aula.id, everyMs: HOUR, addMs: HOUR },
+    });
+
+    correr(aula, 40 * HOUR);
+    store.applyAccruals(session);
+
+    assert.ok(
+      intervalo.totalTime + intervalo.bonusMs <= MAX_TIMER_MS,
+      `total efetivo estourou: ${intervalo.totalTime + intervalo.bonusMs}`,
+    );
+  });
+
+  it("o estado enviado separa duracao configurada de tempo ganho", () => {
+    const { store, session, aula, intervalo } = cenarioAula();
+
+    correr(aula, 2 * HOUR);
+    store.applyAccruals(session);
+
+    const estado = store
+      .buildSessionState(session)
+      .timers.find((t) => t.id === intervalo.id);
+
+    assert.equal(estado.baseTotalTime, 25 * MIN);
+    assert.equal(estado.bonusMs, 10 * MIN);
+    assert.equal(estado.totalTime, 35 * MIN);
+    assert.equal(estado.accrual.everyMs, HOUR);
+    assert.equal(estado.accrual.addMs, 5 * MIN);
   });
 });
 
