@@ -69,12 +69,9 @@
     // modal
     overlay: el("modal-overlay"),
     closeModal: el("btn-close-modal"),
-    configList: el("config-list"),
-    configItemTemplate: el("config-item-template"),
-    configEmpty: el("config-empty"),
-    configForm: el("config-form"),
-    addTimerModal: el("btn-add-timer-modal"),
-    timerCount: el("timer-count"),
+    config: el("timer-config"),
+    configTitle: el("timer-config-title"),
+    closeConfig: el("btn-close-config"),
     cfgName: el("cfg-name"),
     cfgDirectionHint: el("cfg-direction-hint"),
     cfgH: el("cfg-h"),
@@ -109,7 +106,9 @@
 
   let state = { timers: [], primaryTimerId: null };
   let stripSignature = null;
-  let listSignature = null;
+  // Um unico painel de ajustes, movido para dentro do bloco aberto. Manter um
+  // formulario por cronometro duplicaria os campos e os listeners.
+  let openTimerId = null;
   let selectedTimerId = null;
   let feedbackTimer = 0;
 
@@ -150,23 +149,19 @@
     );
     socket.on("session:closed", () => showError("Sessão encerrada."));
 
-    for (const button of [ui.primaryStart, ui.primaryPause, ui.primaryReset]) {
-      button?.addEventListener("click", () =>
-        runAction(button.dataset.action, state.primaryTimerId),
-      );
+    for (const root of [ui.primaryBlock, ui.strip]) {
+      root.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-action]");
+        if (!button || button.disabled || !root.contains(button)) return;
+        runAction(
+          button.dataset.action,
+          button.closest("[data-timer-id]")?.dataset.timerId,
+        );
+      });
     }
 
-    ui.strip.addEventListener("click", (event) => {
-      const button = event.target.closest("[data-action]");
-      if (!button || button.disabled) return;
-      runAction(
-        button.dataset.action,
-        button.closest("[data-timer-id]")?.dataset.timerId,
-      );
-    });
-
+    ui.closeConfig?.addEventListener("click", closeConfig);
     ui.addTimer?.addEventListener("click", () => addTimer());
-    ui.addTimerModal?.addEventListener("click", () => addTimer());
     ui.fullscreen?.addEventListener("click", toggleFullscreen);
     document.addEventListener("fullscreenchange", syncFullscreen);
 
@@ -176,14 +171,9 @@
       if (event.target === ui.overlay) closeModal();
     });
     document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") closeModal();
-    });
-
-    ui.configList?.addEventListener("click", (event) => {
-      const item = event.target.closest("[data-timer-id]");
-      if (!item) return;
-      selectedTimerId = item.dataset.timerId;
-      renderConfig(true);
+      if (event.key !== "Escape") return;
+      closeModal();
+      closeConfig();
     });
 
     // Titulo e modo valem na hora: sao so apresentacao, nao mexem na contagem.
@@ -192,7 +182,7 @@
       ui.cfgName.value = name;
       emitUpdate({ name });
     });
-    ui.configForm?.addEventListener("click", (event) => {
+    ui.config?.addEventListener("click", (event) => {
       const button = event.target.closest("[data-direction]");
       if (!button) return;
       emitUpdate({ direction: button.dataset.direction });
@@ -230,18 +220,19 @@
     const primary = findTimer(state.primaryTimerId);
     renderPrimary(primary);
     renderStrip(state.timers.filter((timer) => timer !== primary));
-    renderConfig(false);
+    placeConfig(false);
     syncWatchers();
 
     ui.boardEmpty.hidden = state.timers.length > 0;
     ui.primaryBlock.hidden = !primary;
-    ui.timerCount.textContent = `${state.timers.length} de ${MAX_TIMERS_PER_SESSION}`;
   }
 
   // -------------------------------------------------------------- destaque
 
   function renderPrimary(timer) {
     if (!timer) return;
+
+    ui.primaryBlock.dataset.timerId = timer.id;
 
     const phase = getPhase(timer.pct);
     const active = timer.status !== "stopped";
@@ -349,6 +340,10 @@
     const timer = findTimer(timerId);
     if (!timer) return;
 
+    if (action === "config") {
+      return toggleConfig(timer.id);
+    }
+
     if (action === "reset") {
       if (
         timer.elapsed >= RESET_CONFIRM_MS &&
@@ -380,8 +375,9 @@
           );
         }
 
+        // Abre os ajustes do recem-criado, que e o proximo passo obvio.
+        openTimerId = response.timerId;
         selectedTimerId = response.timerId;
-        openModal();
       },
     );
   }
@@ -475,55 +471,63 @@
 
   // ------------------------------------------------------ modal de config
 
-  function renderConfig(selectionChanged) {
-    const timer = findTimer(selectedTimerId);
-    const signature = state.timers
-      .map((item) => `${item.id}:${item.name}`)
-      .join(",");
+  function toggleConfig(timerId) {
+    if (openTimerId === timerId) return closeConfig();
 
-    if (signature !== listSignature) {
-      renderConfigList();
-      listSignature = signature;
-    }
-
-    for (const item of ui.configList.children) {
-      const listed = findTimer(item.dataset.timerId);
-      if (!listed) continue;
-      item.setAttribute("aria-selected", String(listed.id === selectedTimerId));
-      item.querySelector(".config-item-star").hidden =
-        listed.id !== state.primaryTimerId;
-      item.querySelector(".config-item-time").textContent = formatTime(
-        getDisplayMs(listed),
-      );
-    }
-
-    ui.configEmpty.hidden = Boolean(timer);
-    ui.configForm.hidden = !timer;
-    if (!timer) return;
-
-    // Campos so sao reescritos ao trocar de selecao: durante a contagem eles
-    // sobrescreveriam o que a pessoa esta digitando.
-    if (selectionChanged) fillConfigForm(timer);
-
-    syncConfigLive(timer);
+    openTimerId = timerId;
+    selectedTimerId = timerId;
+    placeConfig(true);
   }
 
-  function renderConfigList() {
-    ui.configList.replaceChildren();
+  function closeConfig() {
+    openTimerId = null;
+    ui.config.hidden = true;
+    // Fora dos blocos o painel nao interfere no grid dos secundarios.
+    document.body.appendChild(ui.config);
+    syncConfigToggles();
+  }
 
-    for (const timer of state.timers) {
-      const item =
-        ui.configItemTemplate.content.firstElementChild.cloneNode(true);
-      item.dataset.timerId = timer.id;
-      item.querySelector(".config-item-name").textContent = getTimerLabel(timer);
-      ui.configList.appendChild(item);
+  /**
+   * Move o painel para dentro do bloco aberto. Quando a faixa de secundarios
+   * e reconstruida o bloco anfitriao some junto, entao a cada estado o painel
+   * e reposicionado.
+   */
+  function placeConfig(selectionChanged) {
+    const timer = findTimer(openTimerId);
+    if (!timer) {
+      if (openTimerId) closeConfig();
+      return;
+    }
+
+    const host =
+      timer.id === state.primaryTimerId
+        ? ui.primaryBlock
+        : minis.get(timer.id)?.root;
+
+    if (!host) return;
+
+    if (ui.config.parentElement !== host) host.appendChild(ui.config);
+    ui.config.hidden = false;
+    ui.configTitle.textContent = `Ajustes · ${getTimerLabel(timer)}`;
+
+    if (selectionChanged) fillConfigForm(timer);
+    syncConfigLive(timer);
+    syncConfigToggles();
+  }
+
+  function syncConfigToggles() {
+    for (const button of document.querySelectorAll('[data-action="config"]')) {
+      const id = button.closest("[data-timer-id]")?.dataset.timerId;
+      const aberto = Boolean(id) && id === openTimerId;
+      button.setAttribute("aria-expanded", String(aberto));
+      button.textContent = aberto ? "Fechar ajustes" : "Ajustar";
     }
   }
 
   function fillConfigForm(timer) {
     ui.cfgName.value = timer.name;
 
-    for (const button of ui.configForm.querySelectorAll("[data-direction]")) {
+    for (const button of ui.config.querySelectorAll("[data-direction]")) {
       button.setAttribute(
         "aria-pressed",
         String(button.dataset.direction === timer.direction),
@@ -621,7 +625,6 @@
 
   function openModal() {
     ui.overlay.classList.add("open");
-    renderConfig(true);
     renderModels();
   }
 

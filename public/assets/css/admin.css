@@ -2422,3 +2422,85 @@ body::after {
     padding: 0;
   }
 }
+
+/* ------------------------------------------------ painel de ajustes inline */
+
+.config-toggle {
+  align-self: center;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-decoration: underline;
+  text-transform: uppercase;
+  transition: color 0.2s ease;
+}
+
+.config-toggle:hover {
+  color: var(--ink);
+}
+
+.timer-mini .config-toggle {
+  padding: 4px 8px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+.timer-config {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 4px;
+  padding: 18px;
+  border: 1px solid var(--glass-line);
+  border-radius: 20px;
+  background: var(--glass);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  text-align: left;
+  animation: panelIn 0.28s ease;
+}
+
+.timer-config-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.config-close {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  place-items: center;
+  border: 1px solid var(--glass-line);
+  border-radius: 50%;
+  background: var(--glass-strong);
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.config-close:hover {
+  color: var(--ink);
+}
+
+/* Um secundario aberto ocupa a faixa inteira: no espaco de uma coluna os
+   campos ficariam espremidos a ponto de nao dar para usar. */
+.timer-mini:has(> .timer-config:not([hidden])) {
+  grid-column: 1 / -1;
+}
+
+/* Em telas onde `:has` nao esta disponivel o painel apenas empilha dentro da
+   coluna, o que continua utilizavel. */
+@supports not selector(:has(*)) {
+  .timer-mini .timer-config {
+    padding: 14px;
+  }
+}
