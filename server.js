@@ -46,8 +46,11 @@ const sessionStore = createSessionStore({
   defaultTimerMs: config.DEFAULT_TIMER_MS,
   io,
   maxTimerMs: config.MAX_TIMER_MS,
+  maxTimerNameLength: config.MAX_TIMER_NAME_LENGTH,
+  maxTimersPerSession: config.MAX_TIMERS_PER_SESSION,
   sessionIdPattern: config.SESSION_ID_PATTERN,
   sessionTtlMs: config.SESSION_TTL_MS,
+  timerIdPattern: config.TIMER_ID_PATTERN,
 });
 
 const cspDirectives = buildCspDirectives(
@@ -204,7 +207,7 @@ app.post("/api/session/new", createSessionLimiter, (request, response) => {
   const session = sessionStore.createSession();
   logEvent("session_created", {
     sessionId: session.id,
-    totalTime: formatTimerMs(session.totalTime),
+    totalTime: formatTimerMs(sessionStore.getPrimaryTimer(session)?.totalTime),
     ip: getRequestIp(request),
     userAgent: request.get("user-agent") || "unknown",
   });
@@ -323,8 +326,8 @@ io.on("connection", (socket) => {
         buildSocketLogDetails(socket, {
           sessionId,
           role,
-          status: currentSession.status,
-          remaining: formatTimerMs(sessionStore.getRemaining(currentSession)),
+          timers: currentSession.timers.length,
+          remaining: formatTimerMs(getPrimaryRemaining(currentSession)),
           userAgent: getSocketUserAgent(socket),
         }),
       );
@@ -333,62 +336,95 @@ io.on("connection", (socket) => {
     },
   );
 
-  socket.on("timer:setTime", (ms) => {
+  socket.on("timer:add", (payload, callback) => {
     const session = sessionStore.getAdminSession(socket);
-    const safeMs = sessionStore.sanitizeTimerMs(ms);
-    if (!session || safeMs === null || session.status === "running") return;
-
-    session.totalTime = safeMs;
-    session.elapsed = 0;
-    session.startTime = null;
-    session.status = "stopped";
-    sessionStore.broadcastSession(socket.currentSession);
-  });
-
-  socket.on("timer:start", () => {
-    const session = sessionStore.getAdminSession(socket);
-    if (
-      !session ||
-      session.status === "running" ||
-      sessionStore.getRemaining(session) <= 0
-    )
+    if (!session) {
+      if (typeof callback === "function") {
+        callback({ success: false, reason: "unauthorized" });
+      }
       return;
-
-    session.startTime = Date.now();
-    session.status = "running";
-    sessionStore.touchSession(session);
-
-    if (!session.interval) {
-      const sessionId = socket.currentSession;
-      session.interval = setInterval(
-        () => sessionStore.broadcastSession(sessionId),
-        250,
-      );
     }
 
-    sessionStore.broadcastSession(socket.currentSession);
+    const timer = sessionStore.addTimer(session, readTimerPayload(payload));
+    if (!timer) {
+      if (typeof callback === "function") {
+        callback({ success: false, reason: "limit_reached" });
+      }
+      return;
+    }
+
+    logEvent(
+      "timer_added",
+      buildSocketLogDetails(socket, {
+        sessionId: session.id,
+        timerId: timer.id,
+        direction: timer.direction,
+        totalTime: formatTimerMs(timer.totalTime),
+      }),
+    );
+
+    sessionStore.broadcastSession(session.id);
+    if (typeof callback === "function") {
+      callback({ success: true, timerId: timer.id });
+    }
   });
 
-  socket.on("timer:pause", () => {
-    const session = sessionStore.getAdminSession(socket);
-    if (!session || session.status !== "running") return;
-
-    session.elapsed += Date.now() - session.startTime;
-    session.startTime = null;
-    session.status = "paused";
-    sessionStore.clearSessionInterval(session);
-    sessionStore.broadcastSession(socket.currentSession);
+  socket.on("timer:remove", (timerId) => {
+    withAdminSession(socket, (session) =>
+      sessionStore.removeTimer(session, timerId),
+    );
   });
 
-  socket.on("timer:reset", () => {
-    const session = sessionStore.getAdminSession(socket);
-    if (!session) return;
+  socket.on("timer:update", (timerId, payload) => {
+    withAdminSession(socket, (session) =>
+      sessionStore.updateTimer(session, timerId, readTimerPayload(payload)),
+    );
+  });
 
-    session.elapsed = 0;
-    session.startTime = null;
-    session.status = "stopped";
-    sessionStore.clearSessionInterval(session);
-    sessionStore.broadcastSession(socket.currentSession);
+  socket.on("timer:setPrimary", (timerId) => {
+    withAdminSession(socket, (session) =>
+      sessionStore.setPrimaryTimer(session, timerId),
+    );
+  });
+
+  socket.on("timer:move", (timerId, offset) => {
+    withAdminSession(socket, (session) =>
+      sessionStore.moveTimer(session, timerId, Number(offset) < 0 ? -1 : 1),
+    );
+  });
+
+  socket.on("timers:bulk", (action) => {
+    withAdminSession(socket, (session) =>
+      sessionStore.bulkTimerAction(session, action),
+    );
+  });
+
+  socket.on("timer:start", (timerId) => {
+    withAdminSession(socket, (session) =>
+      sessionStore.startSessionTimer(session, resolveTimerId(session, timerId)),
+    );
+  });
+
+  socket.on("timer:pause", (timerId) => {
+    withAdminSession(socket, (session) =>
+      sessionStore.pauseSessionTimer(session, resolveTimerId(session, timerId)),
+    );
+  });
+
+  socket.on("timer:reset", (timerId) => {
+    withAdminSession(socket, (session) =>
+      sessionStore.resetSessionTimer(session, resolveTimerId(session, timerId)),
+    );
+  });
+
+  // Evento do formato antigo (um cronometro por sessao): aplica o tempo ao
+  // cronometro em destaque para nao quebrar abas abertas antes do deploy.
+  socket.on("timer:setTime", (ms) => {
+    withAdminSession(socket, (session) =>
+      sessionStore.updateTimer(session, resolveTimerId(session), {
+        totalTime: ms,
+      }),
+    );
   });
 });
 
@@ -505,6 +541,43 @@ function buildSocketLogDetails(socket, extra = {}) {
 
 function getSocketUserAgent(socket) {
   return socket.request?.headers?.["user-agent"] || "unknown";
+}
+
+/**
+ * Executa uma mutacao que exige papel de admin e retransmite o estado quando
+ * algo realmente mudou, evitando broadcast a cada evento ignorado.
+ */
+function withAdminSession(socket, mutate) {
+  const session = sessionStore.getAdminSession(socket);
+  if (!session) return;
+
+  if (mutate(session)) {
+    sessionStore.broadcastSession(session.id);
+  }
+}
+
+/**
+ * Um id ausente cai no cronometro em destaque, que e o comportamento esperado
+ * tanto do cliente antigo (que nao enviava id) quanto dos atalhos de teclado.
+ */
+function resolveTimerId(session, timerId) {
+  if (timerId === undefined || timerId === null) {
+    return sessionStore.getPrimaryTimer(session)?.id ?? null;
+  }
+
+  return timerId;
+}
+
+function readTimerPayload(payload) {
+  if (!payload || typeof payload !== "object") return {};
+
+  const { direction, name, totalTime } = payload;
+  return { direction, name, totalTime };
+}
+
+function getPrimaryRemaining(session) {
+  const primary = sessionStore.getPrimaryTimer(session);
+  return primary ? sessionStore.getRemaining(primary) : 0;
 }
 
 function normalizeSessionId(value) {
