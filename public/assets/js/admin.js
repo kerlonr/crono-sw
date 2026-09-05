@@ -714,9 +714,23 @@
     }
 
     const timer = findTimer(selectedTimerId);
-    if (timer && decorrido > timer.totalTime - 1000) {
+    if (!timer) return;
+
+    // Valida contra a duracao que esta NO FORMULARIO, nao contra a do
+    // servidor: quem digita 80h e a data de inicio espera que as duas coisas
+    // valham juntas. Antes o botao recusava dizendo "aumente o tempo" com o
+    // tempo ja preenchido logo acima.
+    const totalDoFormulario = readTimeMs();
+    if (totalDoFormulario < 1000 || totalDoFormulario > MAX_TIMER_MS) {
       return showFeedback(
-        `Já teria passado de ${formatTime(timer.totalTime)}. Aumente o tempo antes de sincronizar.`,
+        `Informe uma duração entre 1 segundo e ${MAX_TIMER_HOURS} horas.`,
+        "error",
+      );
+    }
+
+    if (decorrido > totalDoFormulario - 1000) {
+      return showFeedback(
+        `Começou há ${formatTime(decorrido)}, mais que a duração de ${formatTime(totalDoFormulario)}.`,
         "error",
       );
     }
@@ -724,7 +738,24 @@
     fillOffsetInputs(decorrido);
     ui.clockHint.textContent = `Corre há ${formatTime(decorrido)}.`;
 
-    if (iniciar) applyOffset(decorrido, true);
+    if (!iniciar) return;
+
+    // Duracao e ponto de partida vao juntos numa unica atualizacao: o
+    // servidor aplica o total primeiro e depois posiciona a contagem.
+    // So mandamos o total quando ele realmente mudou, porque trocar o total
+    // zera o tempo ganho por regra.
+    const mudouDuracao = totalDoFormulario !== timer.baseTotalTime;
+    emitUpdate(
+      mudouDuracao
+        ? { totalTime: totalDoFormulario, offsetMs: decorrido }
+        : { offsetMs: decorrido },
+    );
+    startSelected();
+
+    showFeedback(
+      `Sincronizado: corre há ${formatTime(decorrido)} de ${formatTime(totalDoFormulario)}.`,
+      "success",
+    );
   }
 
   function applyOffset(ms, iniciar) {
