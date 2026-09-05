@@ -112,6 +112,8 @@ body.finished {
 /* ------------------------------------------------------------------ board */
 
 .viewer-board {
+  container-type: inline-size;
+  container-name: board;
   position: relative;
   z-index: 10;
   display: flex;
@@ -177,7 +179,7 @@ body.finished {
   box-shadow: 0 28px 70px rgba(0, 0, 0, 0.34);
   color: var(--ink);
   font-family: "Share Tech Mono", monospace;
-  font-size: clamp(44px, min(15vw, 30vh), 300px);
+  font-size: clamp(40px, min(13.5vw, 34vh), 220px);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.04em;
   line-height: 1;
@@ -198,7 +200,10 @@ body.finished {
   }
 
   .timer-display {
-    font-size: clamp(44px, min(16cqw, 34cqh), 300px);
+    /* 13.5cqw deixa os digitos em ~72% da largura do bloco. Antes eram
+       16cqw, que dava 83-93% - dai a sensacao de grande demais, quase
+       encostando nas bordas. */
+    font-size: clamp(40px, min(13.5cqw, 38cqh), 220px);
   }
 }
 
@@ -248,7 +253,7 @@ body.finished {
 .viewer-card-time {
   color: var(--ink);
   font-family: "Share Tech Mono", monospace;
-  font-size: clamp(26px, 6.5vw, 62px);
+  font-size: clamp(22px, 5.5vw, 58px);
   font-variant-numeric: tabular-nums;
   line-height: 1;
   transition:
@@ -262,7 +267,9 @@ body.finished {
   }
 
   .viewer-card-time {
-    font-size: clamp(24px, 22cqi, 82px);
+    /* Teto baixo de proposito: com 82px o secundario chegava a ficar MAIOR
+       que o principal em tela estreita, invertendo a hierarquia. */
+    font-size: clamp(22px, 17cqi, 58px);
   }
 }
 
@@ -351,20 +358,33 @@ body.finished {
   }
 }
 
-@media (max-width: 720px) {
-  .viewer-board {
-    gap: 10px;
-    padding: 12px;
-  }
-
+@container board (max-width: 720px) {
   .viewer-secondaries {
     grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
-    max-height: 40dvh;
+    max-height: 38dvh;
   }
 
   .viewer-card {
     padding: 10px 12px;
     border-radius: 18px;
+  }
+
+  /* Menos moldura em volta dos digitos: em tela estreita o padding roubava
+     a largura que o numero precisa. */
+  .timer-display {
+    padding: clamp(10px, 2vh, 18px) clamp(12px, 3vw, 22px);
+    border-radius: 20px;
+  }
+
+  .viewer-primary-bar {
+    width: min(92%, 880px);
+  }
+}
+
+@media (max-width: 720px) {
+  .viewer-board {
+    gap: 10px;
+    padding: 12px;
   }
 }
 
