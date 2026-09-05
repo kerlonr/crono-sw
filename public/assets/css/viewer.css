@@ -118,6 +118,10 @@ body.finished {
   z-index: 10;
   display: flex;
   flex-direction: column;
+  /* O conjunto fica centrado na tela. Antes o destaque esticava para ocupar
+     toda a sobra e empurrava os secundarios para a borda de baixo, deixando
+     um vazio grande no meio. */
+  justify-content: center;
   gap: clamp(10px, 2vh, 26px);
   width: 100%;
   height: 100dvh;
@@ -129,11 +133,16 @@ body.finished {
   color: var(--ink-soft);
 }
 
-/* O destaque ocupa toda a altura que sobra depois dos cards secundarios.
-   `flex-basis: 0` evita que o tamanho do proprio texto influencie a divisao. */
+/* O destaque cresce ate um teto, e o que sobra e dividido em cima e embaixo
+   pelo `justify-content: center` do board. `flex-basis: 0` evita que o
+   tamanho do proprio texto influencie a divisao. */
 .viewer-primary {
   display: flex;
   flex: 1 1 0%;
+  /* Teto justo: com o bloco muito mais alto que o conteudo, a sobra
+     centrava por dentro tambem e abria um vao entre a legenda e os
+     secundarios. */
+  max-height: 44dvh;
   min-height: 0;
   flex-direction: column;
   align-items: center;
@@ -249,7 +258,7 @@ body.finished {
     /* 13.5cqw deixa os digitos em ~72% da largura do bloco. Antes eram
        16cqw, que dava 83-93% - dai a sensacao de grande demais, quase
        encostando nas bordas. */
-    font-size: clamp(40px, min(13.5cqw, 38cqh), 220px);
+    font-size: clamp(40px, min(13.5cqw, 48cqh), 220px);
   }
 }
 
