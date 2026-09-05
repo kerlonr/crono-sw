@@ -203,6 +203,37 @@
   }
 
   /**
+   * Avanca um cronometro em execucao pelo tempo decorrido LOCALMENTE desde que
+   * o estado chegou.
+   *
+   * O servidor manda estado 4x por segundo, mas uma conexao meio-morta so e
+   * detectada pelo ping do Socket.IO, o que pode levar ~45s. Nesse intervalo a
+   * tela ficava parada num valor velho, dando a impressao de que o cronometro
+   * tinha perdido tempo. Contando localmente entre as mensagens o numero
+   * continua certo, e a proxima mensagem do servidor corrige qualquer desvio.
+   *
+   * Usa o delta desde a chegada, nao o relogio absoluto, entao diferenca de
+   * horario entre cliente e servidor nao entra na conta.
+   *
+   * @param {object} timer
+   * @param {number} deltaMs
+   * @returns {object}
+   */
+  function advanceTimer(timer, deltaMs) {
+    if (timer.status !== "running" || !(deltaMs > 0)) return timer;
+
+    const elapsed = Math.min(timer.totalTime, timer.elapsed + deltaMs);
+    const remaining = Math.max(0, timer.totalTime - elapsed);
+
+    return {
+      ...timer,
+      elapsed,
+      remaining,
+      pct: timer.totalTime > 0 ? remaining / timer.totalTime : 1,
+    };
+  }
+
+  /**
    * Tempo que a tela exibe: o progressivo mostra quanto ja passou, o
    * regressivo mostra quanto falta.
    * @param {object} timer
@@ -271,6 +302,7 @@
   window.CronoUtils = Object.freeze({
     MAX_TIMERS_PER_SESSION,
     MAX_TIMER_MS,
+    advanceTimer,
     MAX_TIMER_NAME_LENGTH,
     formatCompactDuration,
     formatTime,

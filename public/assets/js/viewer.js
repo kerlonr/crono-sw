@@ -7,6 +7,7 @@
  */
 (() => {
   const {
+    advanceTimer,
     formatTime,
     getDisplayMs,
     getPhase,
@@ -61,6 +62,9 @@
   }
 
   let tentativasDeEntrada = 0;
+  let estadoBase = null;
+  let recebidoEm = 0;
+  const ATRASO_SUSPEITO_MS = 4000;
 
   // O viewer costuma ficar horas projetado, sem ninguem tocando. Quando o
   // socket cai por ociosidade, o Socket.IO reconecta com um socket novo, que
@@ -100,15 +104,33 @@
   });
 
   socket.on("session:state", (raw) => {
-    const state = sanitizeSessionState(raw);
-    const primary =
-      state.timers.find((timer) => timer.id === state.primaryTimerId) ?? null;
-    const secondaries = state.timers.filter((timer) => timer !== primary);
-
-    syncFinishWatchers(state.timers);
-    renderPrimary(primary);
-    renderSecondaries(secondaries);
+    estadoBase = sanitizeSessionState(raw);
+    recebidoEm = performance.now();
+    desenhar();
   });
+
+  // Redesenha entre as mensagens do servidor, avancando localmente o que esta
+  // em execucao. Sem isso a tela congelava sempre que o socket ficava mudo.
+  window.setInterval(desenhar, 250);
+
+  function desenhar() {
+    if (!estadoBase) return;
+
+    const atraso = performance.now() - recebidoEm;
+    const timers = estadoBase.timers.map((timer) => advanceTimer(timer, atraso));
+    const primary =
+      timers.find((timer) => timer.id === estadoBase.primaryTimerId) ?? null;
+
+    syncFinishWatchers(timers);
+    renderPrimary(primary);
+    renderSecondaries(timers.filter((timer) => timer !== primary));
+
+    // Avisa que os dados estao velhos, mas segue contando: o cronometro de
+    // parede nao para so porque a conexao parou.
+    if (atraso > ATRASO_SUSPEITO_MS && socket.connected) {
+      setConexao("Sem resposta do servidor...");
+    }
+  }
 
   function renderPrimary(timer) {
     const hasPrimary = Boolean(timer);

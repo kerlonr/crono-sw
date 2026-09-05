@@ -13,6 +13,7 @@
 (() => {
   const {
     MAX_TIMERS_PER_SESSION,
+    advanceTimer,
     MAX_TIMER_MS,
     formatCompactDuration,
     formatTime,
@@ -133,6 +134,9 @@
   let feedbackTimer = 0;
   let entrou = false;
   let tentativasDeEntrada = 0;
+  let estadoBase = null;
+  let recebidoEm = 0;
+  const ATRASO_SUSPEITO_MS = 4000;
 
   if (!ui.panel || !ui.strip || !ui.miniTemplate || !isValidSessionId(sessionId)) {
     return showError("Sessão não encontrada.");
@@ -400,7 +404,33 @@
   }
 
   function applyState(raw) {
-    state = sanitizeSessionState(raw);
+    estadoBase = sanitizeSessionState(raw);
+    recebidoEm = performance.now();
+    desenhar();
+  }
+
+  /**
+   * Entre as mensagens do servidor a tela segue contando sozinha. Uma conexao
+   * meio-morta demora ate ~45s para o Socket.IO perceber, e nesse tempo o
+   * painel ficava parado num valor velho.
+   */
+  function desenhar() {
+    if (!estadoBase) return;
+
+    const atraso = performance.now() - recebidoEm;
+    state = {
+      primaryTimerId: estadoBase.primaryTimerId,
+      timers: estadoBase.timers.map((timer) => advanceTimer(timer, atraso)),
+    };
+
+    if (atraso > ATRASO_SUSPEITO_MS && socket.connected) {
+      setConexao("Sem resposta do servidor...");
+    }
+
+    renderizar();
+  }
+
+  function renderizar() {
 
     if (!findTimer(selectedTimerId)) {
       selectedTimerId = state.primaryTimerId;
@@ -415,6 +445,9 @@
     ui.boardEmpty.hidden = state.timers.length > 0;
     ui.primaryBlock.hidden = !primary;
   }
+
+  // Mesmo ritmo do servidor, para o painel nunca ficar parado.
+  window.setInterval(desenhar, 250);
 
   // -------------------------------------------------------------- destaque
 
