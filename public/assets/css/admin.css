@@ -2817,3 +2817,27 @@ body.login-mode {
 .login-card .settings-link {
   align-self: center;
 }
+
+/* Aviso de conexao: discreto e sem empurrar o layout. Antes uma queda do
+   socket nao dava sinal nenhum - a tela simplesmente parava. */
+.link-status {
+  position: fixed;
+  z-index: 60;
+  bottom: 16px;
+  left: 50%;
+  padding: 9px 18px;
+  border: 1px solid var(--glass-line, rgba(169, 214, 255, 0.18));
+  border-radius: 999px;
+  background: var(--glass-strong, rgba(13, 25, 44, 0.92));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.34);
+  color: var(--warn, #ffc76b);
+  font-family: "Barlow", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  transform: translateX(-50%);
+  pointer-events: none;
+}

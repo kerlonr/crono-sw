@@ -107,6 +107,7 @@
     moveDown: el("btn-move-down"),
     removeTimer: el("btn-remove-timer"),
     modelsManage: el("models-manage"),
+    linkStatus: el("link-status"),
     loginShell: el("login-shell"),
     loginForm: el("login-form"),
     loginUser: el("login-user"),
@@ -130,6 +131,8 @@
   let openTimerId = null;
   let selectedTimerId = null;
   let feedbackTimer = 0;
+  let entrou = false;
+  let tentativasDeEntrada = 0;
 
   if (!ui.panel || !ui.strip || !ui.miniTemplate || !isValidSessionId(sessionId)) {
     return showError("Sessão não encontrada.");
@@ -221,28 +224,66 @@
 
   // --------------------------------------------------------------- conexao
 
+  /**
+   * Ao reconectar, o Socket.IO cria um socket NOVO no servidor - sem sala e
+   * sem papel de admin. Sem reentrar na sessao a tela congela e os controles
+   * param de responder em silencio, que era o sintoma de "a sessao caiu"
+   * depois de um tempo com a aba fora de foco. Entrar no evento `connect`
+   * cobre a primeira conexao e todas as reconexoes.
+   */
   function connect() {
+    socket.on("connect", entrarNaSessao);
+    socket.on("disconnect", () => setConexao("Reconectando..."));
+
+    if (socket.connected) entrarNaSessao();
+  }
+
+  function entrarNaSessao() {
     socket.emit("session:join", sessionId, "admin", adminToken, (response) => {
-      if (!response?.success) {
-        return showError(
-          response?.reason === "unauthorized"
-            ? "Acesso de admin inválido ou expirado."
-            : "Sessão não encontrada.",
-        );
+      if (response?.success) {
+        tentativasDeEntrada = 0;
+        setConexao("");
+
+        if (entrou) return;
+        entrou = true;
+
+        ui.panel.style.display = "block";
+        for (const link of ui.viewerLinks) link.href = `/view/${sessionId}`;
+        renderModels();
+        syncFullscreen();
+        return;
       }
 
-      ui.panel.style.display = "block";
-      for (const link of ui.viewerLinks) link.href = `/view/${sessionId}`;
-      renderModels();
-      syncFullscreen();
+      if (response?.reason === "unauthorized") {
+        return showError("Acesso de admin inválido ou expirado.");
+      }
+
+      // "nao encontrada" logo apos um reinicio do servidor costuma ser corrida
+      // com a restauracao do snapshot. Vale tentar de novo antes de derrubar a
+      // tela do usuario, que so teria a opcao de recarregar na mao.
+      if (tentativasDeEntrada < 6) {
+        tentativasDeEntrada += 1;
+        setConexao(`Reconectando... (${tentativasDeEntrada}/6)`);
+        window.setTimeout(entrarNaSessao, 2000);
+        return;
+      }
+
+      showError("Sessão não encontrada.");
     });
+  }
+
+  function setConexao(mensagem) {
+    if (!ui.linkStatus) return;
+    ui.linkStatus.textContent = mensagem;
+    ui.linkStatus.hidden = !mensagem;
   }
 
   function bindEvents() {
     socket.on("session:state", applyState);
-    socket.on("connect_error", () =>
-      showError("Não foi possível conectar ao servidor."),
-    );
+    // Falha de conexao nao e fatal: o Socket.IO segue tentando sozinho, e
+    // derrubar a tela aqui apagaria um painel que volta a funcionar em
+    // segundos.
+    socket.on("connect_error", () => setConexao("Sem conexão. Tentando..."));
     socket.on("session:closed", () => showError("Sessão encerrada."));
 
     for (const root of [ui.primaryBlock, ui.strip]) {

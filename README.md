@@ -214,6 +214,17 @@ Como é tratado:
 - `/api/sessions/active` expõe apenas `hasAuth`, nunca usuário, sal ou hash
 - o formulário usa `method="post"`, então nem um envio nativo (JS quebrado) leva a senha para a URL
 
+### Reconexão
+
+Ao reconectar, o Socket.IO cria um socket **novo** no servidor — sem sala e sem papel de admin. Por isso
+admin e viewer reentram na sessão a cada evento `connect`, o que cobre a primeira conexão e todas as
+reconexões. Sem isso a tela congelava no último valor recebido e os controles paravam de responder em
+silêncio, dando a impressão de que a sessão havia caído (ela seguia viva no servidor).
+
+Uma queda mostra um aviso discreto de "Reconectando..." em vez de derrubar a tela, e um `not_found` logo
+após reinício do servidor é tentado de novo até 6 vezes antes de virar erro — costuma ser corrida com a
+restauração do snapshot.
+
 ### Persistência
 
 As sessões são gravadas em disco a cada 5 segundos e no desligamento (`STATE_FILE`, `STATE_SAVE_SECONDS`),

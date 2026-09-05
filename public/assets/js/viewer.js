@@ -46,6 +46,7 @@
 
   const cards = new Map();
   const finishWatchers = new Map();
+  const linkStatus = document.getElementById("link-status");
 
   let secondarySignature = null;
 
@@ -58,15 +59,40 @@
     return;
   }
 
-  socket.emit("session:join", sessionId, "viewer", (response) => {
-    if (!response?.success) {
-      showError("Sessão não encontrada.");
-    }
-  });
+  let tentativasDeEntrada = 0;
 
-  socket.on("connect_error", () => {
-    showError("Não foi possível conectar ao servidor.");
-  });
+  // O viewer costuma ficar horas projetado, sem ninguem tocando. Quando o
+  // socket cai por ociosidade, o Socket.IO reconecta com um socket novo, que
+  // nao esta em sala nenhuma - sem reentrar aqui, a tela congela no ultimo
+  // valor recebido, parecendo travada.
+  socket.on("connect", entrarNaSessao);
+  socket.on("disconnect", () => setConexao("Reconectando..."));
+  socket.on("connect_error", () => setConexao("Sem conexão. Tentando..."));
+
+  if (socket.connected) entrarNaSessao();
+
+  function entrarNaSessao() {
+    socket.emit("session:join", sessionId, "viewer", (response) => {
+      if (response?.success) {
+        tentativasDeEntrada = 0;
+        return setConexao("");
+      }
+
+      if (tentativasDeEntrada < 6) {
+        tentativasDeEntrada += 1;
+        setConexao(`Reconectando... (${tentativasDeEntrada}/6)`);
+        return window.setTimeout(entrarNaSessao, 2000);
+      }
+
+      showError("Sessão não encontrada.");
+    });
+  }
+
+  function setConexao(mensagem) {
+    if (!linkStatus) return;
+    linkStatus.textContent = mensagem;
+    linkStatus.hidden = !mensagem;
+  }
 
   socket.on("session:closed", () => {
     showError("Sessão encerrada.");

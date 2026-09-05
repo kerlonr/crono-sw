@@ -33,10 +33,12 @@
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;600;900&display=swap"
     rel="stylesheet" />
   <script src="/socket.io/socket.io.js"></script>
-  <link rel="stylesheet" href="/assets/css/admin.css?v=20260905j" />
+  <link rel="stylesheet" href="/assets/css/admin.css?v=20260905k" />
 </head>
 
 <body>
+  <div class="link-status" id="link-status" hidden aria-live="polite"></div>
+
   <div class="login-shell" id="login-shell" hidden>
     <!-- method="post": se o JS falhar, um envio nativo nao pode levar a senha
          para a query string, que ficaria no historico e nos logs de acesso. -->
@@ -330,7 +332,7 @@
 
   <script src="/assets/js/crono-utils.js?v=20260904d"></script>
   <script src="/assets/js/finish-sound.js?v=20260429b"></script>
-  <script src="/assets/js/admin.js?v=20260905g"></script>
+  <script src="/assets/js/admin.js?v=20260905k"></script>
 </body>
 
 </html>
