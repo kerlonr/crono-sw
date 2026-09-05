@@ -2841,3 +2841,58 @@ body.login-mode {
   transform: translateX(-50%);
   pointer-events: none;
 }
+
+/* Sincronizacao pelo horario: uma linha para o instante e outra para as
+   acoes, senao vira uma fileira longa que quebra feio em painel estreito. */
+.clock-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.clock-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.clock-line input[type="datetime-local"] {
+  min-height: 42px;
+  flex: 1 1 220px;
+  padding: 8px 12px;
+  border: 1px solid var(--glass-line);
+  border-radius: 10px;
+  background: var(--glass-strong);
+  color: var(--ink);
+  font-family: "Share Tech Mono", monospace;
+  font-size: 14px;
+}
+
+.clock-line input[type="datetime-local"]:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.clock-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.clock-actions .btn-set {
+  min-height: 44px;
+  flex: 1 1 auto;
+}
+
+@supports (container-type: inline-size) {
+  @container cfg (max-width: 520px) {
+    .clock-line input[type="datetime-local"] {
+      flex-basis: 100%;
+    }
+
+    .clock-actions .btn-set {
+      flex-basis: 100%;
+    }
+  }
+}

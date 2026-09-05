@@ -196,6 +196,12 @@ calcula o valor a partir de um horário — se o horário ainda não chegou hoje
 O ponto fica guardado à parte do decorrido, então `Reset` volta para ele, não para zero. Informar consumo
 **não** descarta o tempo ganho por regra; só o `Reset` faz isso.
 
+Para não precisar calcular na mão, o campo **Começou em** aceita data, hora, minuto e segundo e deduz
+sozinho quanto já correu — `Sincronizar e iniciar` aplica e dá Start num clique. A data importa porque uma
+contagem de 80 horas atravessa dias: só o horário não diria se foi hoje, ontem ou anteontem. Vale igual
+para progressivo e regressivo, já que nos dois o que conta é quanto tempo passou desde o início. O campo
+abre preenchido com o instante que a contagem atual implica, servindo também de conferência.
+
 ### Acesso do admin
 
 O token no hash do link continua sendo a credencial. Usuário e senha são **opcionais** e servem para

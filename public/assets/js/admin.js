@@ -88,6 +88,8 @@
     clockHint: el("clock-hint"),
     cfgClock: el("cfg-clock"),
     fromClock: el("btn-from-clock"),
+    clockNow: el("btn-clock-now"),
+    clockSync: el("btn-clock-sync"),
     cfgOffH: el("cfg-off-h"),
     cfgOffM: el("cfg-off-m"),
     cfgOffS: el("cfg-off-s"),
@@ -334,7 +336,9 @@
     ui.applyOffset?.addEventListener("click", () => applyOffset(readOffsetMs(), false));
     ui.offsetStart?.addEventListener("click", () => applyOffset(readOffsetMs(), true));
     ui.clearOffset?.addEventListener("click", () => applyOffset(0, false));
-    ui.fromClock?.addEventListener("click", fillFromClock);
+    ui.fromClock?.addEventListener("click", () => sincronizarPeloRelogio(false));
+    ui.clockSync?.addEventListener("click", () => sincronizarPeloRelogio(true));
+    ui.clockNow?.addEventListener("click", preencherAgora);
 
     // Ajuste rapido: mexer nos campos de hora um a um para somar 5 minutos e
     // o tipo de atrito que faz a tela parecer ruim de usar.
@@ -668,35 +672,59 @@
     if (selectedTimerId) socket.emit("timer:start", selectedTimerId);
   }
 
+  const doisDigitos = (valor) => String(valor).padStart(2, "0");
+
+  /** Monta o valor de um `datetime-local` a partir de uma data local. */
+  function paraCampoDeData(data) {
+    return (
+      `${data.getFullYear()}-${doisDigitos(data.getMonth() + 1)}` +
+      `-${doisDigitos(data.getDate())}T${doisDigitos(data.getHours())}` +
+      `:${doisDigitos(data.getMinutes())}:${doisDigitos(data.getSeconds())}`
+    );
+  }
+
+  function preencherAgora() {
+    if (ui.cfgClock) ui.cfgClock.value = paraCampoDeData(new Date());
+  }
+
   /**
-   * Converte o horario informado em quanto ja correu ate agora. Se o horario
-   * ainda nao chegou hoje, entende-se que foi ontem.
+   * Calcula sozinho quanto ja correu desde o instante informado.
+   *
+   * O campo carrega data alem de hora, minuto e segundo porque uma contagem
+   * de 80 horas atravessa dias: so "08:00" nao diz se foi hoje, ontem ou
+   * anteontem. Vale igual para progressivo e regressivo - nos dois o que
+   * importa e quanto tempo passou desde o inicio.
+   *
+   * @param {boolean} iniciar aplica e ja da Start, sem passo intermediario.
    */
-  function fillFromClock() {
+  function sincronizarPeloRelogio(iniciar) {
     const valor = ui.cfgClock?.value;
     if (!valor) {
-      return showFeedback("Informe o horário em que começou.", "error");
+      return showFeedback("Informe a data e a hora em que começou.", "error");
     }
 
-    const [horas, minutos] = valor.split(":").map(Number);
-    const inicio = new Date();
-    inicio.setHours(horas, minutos, 0, 0);
-    if (inicio.getTime() > Date.now()) {
-      inicio.setDate(inicio.getDate() - 1);
+    const inicio = new Date(valor);
+    if (Number.isNaN(inicio.getTime())) {
+      return showFeedback("Data e hora inválidas.", "error");
     }
 
     const decorrido = Date.now() - inicio.getTime();
-    fillOffsetInputs(decorrido);
-    ui.clockHint.textContent = `Dá ${formatTime(decorrido)} até agora.`;
-  }
+    if (decorrido < 0) {
+      return showFeedback("Esse instante ainda não chegou.", "error");
+    }
 
-  function readOffsetMs() {
-    return (
-      (readNumber(ui.cfgOffH, 0, MAX_TIMER_HOURS) * 3600 +
-        readNumber(ui.cfgOffM, 0, 59) * 60 +
-        readNumber(ui.cfgOffS, 0, 59)) *
-      1000
-    );
+    const timer = findTimer(selectedTimerId);
+    if (timer && decorrido > timer.totalTime - 1000) {
+      return showFeedback(
+        `Já teria passado de ${formatTime(timer.totalTime)}. Aumente o tempo antes de sincronizar.`,
+        "error",
+      );
+    }
+
+    fillOffsetInputs(decorrido);
+    ui.clockHint.textContent = `Corre há ${formatTime(decorrido)}.`;
+
+    if (iniciar) applyOffset(decorrido, true);
   }
 
   function applyOffset(ms, iniciar) {
@@ -819,6 +847,12 @@
     fillOffsetInputs(timer.offsetMs);
     if (ui.clockHint) ui.clockHint.textContent = "";
 
+    // Ja vem com o instante que a contagem atual implica: o campo serve de
+    // conferencia, nao so de entrada.
+    if (ui.cfgClock) {
+      ui.cfgClock.value = paraCampoDeData(new Date(Date.now() - timer.elapsed));
+    }
+
     fillAccrualForm(timer);
   }
 
@@ -871,10 +905,11 @@
     ui.cfgOffsetLabel.textContent = progressivo
       ? "Já decorrido"
       : "Já consumido";
-    ui.clockLabel.textContent = progressivo
-      ? "ou começou às"
-      : "ou está correndo desde";
+    ui.clockLabel.textContent = "Começou em";
     ui.clockRow.hidden = false;
+    ui.clockSync.disabled = running;
+    ui.clockNow.disabled = running;
+    ui.fromClock.disabled = running;
 
     ui.applyTime.disabled = running;
     ui.applyStart.disabled = running;

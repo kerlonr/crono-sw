@@ -33,7 +33,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;600;900&display=swap"
     rel="stylesheet" />
   <script src="/socket.io/socket.io.js"></script>
-  <link rel="stylesheet" href="/assets/css/admin.css?v=20260905k" />
+  <link rel="stylesheet" href="/assets/css/admin.css?v=20260905r" />
 </head>
 
 <body>
@@ -210,9 +210,16 @@
       </div>
 
       <div class="clock-row" id="clock-row">
-        <span id="clock-label">ou começou às</span>
-        <input type="time" id="cfg-clock" aria-label="Horário em que começou" />
-        <button class="btn-set secondary" id="btn-from-clock" type="button">Calcular</button>
+        <div class="clock-line">
+          <span id="clock-label">Começou em</span>
+          <input type="datetime-local" id="cfg-clock" step="1"
+            aria-label="Data e hora em que o cronômetro começou" />
+          <button class="btn-set secondary" id="btn-clock-now" type="button">Agora</button>
+        </div>
+        <div class="clock-actions">
+          <button class="btn-set btn-go" id="btn-clock-sync" type="button">Sincronizar e iniciar</button>
+          <button class="btn-set" id="btn-from-clock" type="button">Só calcular</button>
+        </div>
         <span class="field-hint" id="clock-hint"></span>
       </div>
 
@@ -332,7 +339,7 @@
 
   <script src="/assets/js/crono-utils.js?v=20260905q"></script>
   <script src="/assets/js/finish-sound.js?v=20260429b"></script>
-  <script src="/assets/js/admin.js?v=20260905q"></script>
+  <script src="/assets/js/admin.js?v=20260905r"></script>
 </body>
 
 </html>
