@@ -141,6 +141,41 @@ body.finished {
   gap: clamp(4px, 1.2vh, 16px);
 }
 
+.viewer-primary-head {
+  display: flex;
+  align-items: center;
+  gap: clamp(8px, 1.4vw, 16px);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* Estado escrito, para nao depender so da opacidade. */
+.viewer-state {
+  padding: 5px 14px;
+  border: 1px solid rgba(255, 199, 107, 0.42);
+  border-radius: 999px;
+  background: rgba(255, 199, 107, 0.14);
+  color: var(--warn);
+  font-family: "Barlow", sans-serif;
+  font-size: clamp(10px, 1.2vw, 14px);
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.viewer-state[data-status="finished"] {
+  border-color: rgba(255, 59, 48, 0.45);
+  background: rgba(255, 59, 48, 0.16);
+  color: var(--danger);
+}
+
+.viewer-state[data-status="stopped"] {
+  border-color: var(--line);
+  background: rgba(169, 214, 255, 0.1);
+  color: var(--ink-soft);
+}
+
 .viewer-primary-label {
   color: var(--ink-soft);
   font-family: "Barlow", sans-serif;
@@ -161,14 +196,21 @@ body.finished {
 }
 
 .viewer-primary-bar {
-  width: min(76%, 880px);
-  height: clamp(6px, 1.1vh, 12px);
+  width: 100%;
+  height: 5px;
+  opacity: 0.9;
 }
 
-/* Moldura de vidro do design original: os digitos ficam dentro de um painel,
-   nao soltos no fundo. */
-.timer-display {
-  padding: clamp(16px, 3vh, 34px) clamp(20px, 4vw, 42px);
+/* A moldura vive no involucro, nao no texto: assim a barra de progresso cabe
+   dentro da bolha, logo abaixo dos digitos, em vez de atravessar a tela. */
+.viewer-frame {
+  display: flex;
+  max-width: 100%;
+  flex-direction: column;
+  align-items: stretch;
+  gap: clamp(10px, 1.6vh, 18px);
+  padding: clamp(16px, 3vh, 32px) clamp(20px, 4vw, 40px)
+    clamp(12px, 2vh, 22px);
   border: 1px solid var(--line);
   border-radius: clamp(20px, 3vw, 34px);
   background:
@@ -177,6 +219,10 @@ body.finished {
   backdrop-filter: blur(26px);
   -webkit-backdrop-filter: blur(26px);
   box-shadow: 0 28px 70px rgba(0, 0, 0, 0.34);
+}
+
+.timer-display {
+  text-align: center;
   color: var(--ink);
   font-family: "Share Tech Mono", monospace;
   font-size: clamp(40px, min(13.5vw, 34vh), 220px);
@@ -334,9 +380,17 @@ body.finished {
   animation: timerBlink 0.56s infinite;
 }
 
+/* Pausado com cor propria: a 50% de opacidade sobre um verde escuro ninguem
+   percebia que estava parado, ainda mais ao abrir a tela ja pausada. */
 .timer-display.paused,
 .viewer-card-time.paused {
-  opacity: 0.5;
+  color: #93a9c4;
+  opacity: 0.8;
+  text-shadow: none;
+}
+
+.viewer-card[data-status="paused"] {
+  border-color: rgba(147, 169, 196, 0.32);
 }
 
 @keyframes timerBlink {

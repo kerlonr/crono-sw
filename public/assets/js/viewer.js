@@ -41,6 +41,7 @@
     primaryProgress: document.getElementById("viewer-primary-progress"),
     primaryTime: document.getElementById("viewer-primary-time"),
     secondaries: document.getElementById("viewer-secondaries"),
+    state: document.getElementById("viewer-state"),
     cardTemplate: document.getElementById("viewer-card-template"),
   };
 
@@ -127,6 +128,7 @@
     const isFinished = timer.status === "finished" || timer.remaining <= 0;
 
     elements.primaryLabel.textContent = getTimerLabel(timer);
+    setEstado(timer);
     elements.primaryMeta.textContent = getTimerMetaLabel(timer);
     elements.primaryTime.textContent = formatTime(getDisplayMs(timer));
     elements.primaryTime.className = `timer-display ${buildTimerClass(
@@ -145,6 +147,25 @@
 
     elements.glowBg.style.background =
       timer.status === "running" ? (GLOWS[phase] ?? GLOWS.green) : "none";
+  }
+
+  /**
+   * Estado escrito por extenso. Antes o unico sinal de pausado era a opacidade
+   * mais baixa - quem abrisse a tela ja pausada nao tinha como saber, porque
+   * nao viu a mudanca acontecer.
+   */
+  function setEstado(timer) {
+    if (!elements.state) return;
+
+    const rotulo = {
+      paused: "Pausado",
+      stopped: "Parado",
+      finished: "Encerrado",
+    }[timer.status];
+
+    elements.state.textContent = rotulo || "";
+    elements.state.dataset.status = timer.status;
+    elements.state.hidden = !rotulo;
   }
 
   function renderSecondaries(timers) {

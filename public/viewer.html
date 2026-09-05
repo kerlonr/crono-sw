@@ -35,7 +35,7 @@
     rel="stylesheet" />
   <script src="/socket.io/socket.io.js"></script>
 
-  <link rel="stylesheet" href="/assets/css/viewer.css?v=20260905m" />
+  <link rel="stylesheet" href="/assets/css/viewer.css?v=20260905n" />
 </head>
 
 <body>
@@ -45,10 +45,15 @@
 
   <main class="viewer-board" id="viewer-board">
     <section class="viewer-primary" id="viewer-primary" hidden>
-      <div class="viewer-primary-label" id="viewer-primary-label"></div>
-      <div class="timer-display" id="viewer-primary-time">--:--:--</div>
-      <div class="viewer-progress viewer-primary-bar">
-        <div class="viewer-progress-fill" id="viewer-primary-progress"></div>
+      <div class="viewer-primary-head">
+        <span class="viewer-primary-label" id="viewer-primary-label"></span>
+        <span class="viewer-state" id="viewer-state" hidden></span>
+      </div>
+      <div class="viewer-frame">
+        <div class="timer-display" id="viewer-primary-time">--:--:--</div>
+        <div class="viewer-progress viewer-primary-bar">
+          <div class="viewer-progress-fill" id="viewer-primary-progress"></div>
+        </div>
       </div>
       <div class="viewer-primary-meta" id="viewer-primary-meta"></div>
     </section>
@@ -71,7 +76,7 @@
 
   <script src="/assets/js/crono-utils.js?v=20260904c"></script>
   <script src="/assets/js/finish-sound.js?v=20260429b"></script>
-  <script src="/assets/js/viewer.js?v=20260905k"></script>
+  <script src="/assets/js/viewer.js?v=20260905n"></script>
 </body>
 
 </html>
