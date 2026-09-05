@@ -2091,22 +2091,33 @@ body::after {
   }
 }
 
-.progress-fill[data-phase="yellow"] {
-  background: linear-gradient(
+/* O CSS nao interpola entre dois `linear-gradient`: trocar o fundo da barra
+   fazia a cor PULAR de verde para amarelo e para vermelho.
+   A fase passa a viver em `background-color`, que interpola, e o brilho do
+   gradiente vira `background-image` semitransparente por cima - some a troca
+   seca sem perder o acabamento. Sao propriedades separadas, entao a imagem
+   fica parada enquanto so a cor por baixo muda. */
+.progress-fill {
+  background-color: var(--accent);
+  background-image: linear-gradient(
     90deg,
-    rgba(255, 199, 107, 0.94),
-    rgba(255, 176, 87, 0.94)
+    rgba(255, 255, 255, 0.14),
+    rgba(122, 191, 255, 0.32)
   );
+  transition:
+    width 0.12s linear,
+    background-color 0.55s ease;
+}
+
+.progress-fill[data-phase="yellow"] {
+  background-color: var(--warn);
 }
 
 .progress-fill[data-phase="red"],
 .progress-fill[data-phase="blink"] {
-  background: linear-gradient(
-    90deg,
-    rgba(255, 59, 48, 0.94),
-    rgba(255, 122, 89, 0.94)
-  );
+  background-color: var(--danger);
 }
+
 
 .board-empty {
   padding: 18px;

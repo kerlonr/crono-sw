@@ -583,3 +583,25 @@ h1 {
     letter-spacing: 0.06em;
   }
 }
+
+/* Tres acoes numa grade de duas colunas deixavam o "Finalizar" sozinho e pela
+   metade na linha de baixo. As duas acoes de abrir ficam lado a lado e a
+   destrutiva ocupa a linha inteira, separada e em estilo discreto - ela nao
+   precisa disputar atencao com o resto. */
+.card-action-buttons .card-end-button {
+  grid-column: 1 / -1;
+  border-color: rgba(255, 138, 154, 0.28);
+  background: rgba(110, 34, 43, 0.22);
+  color: #ffb3bd;
+}
+
+.card-action-buttons .card-end-button:hover:not(:disabled) {
+  border-color: rgba(255, 138, 154, 0.5);
+  background: linear-gradient(
+      180deg,
+      rgba(110, 34, 43, 0.88),
+      rgba(42, 11, 17, 0.96)
+    ),
+    rgba(56, 14, 22, 0.88);
+  color: #ffd6d8;
+}
