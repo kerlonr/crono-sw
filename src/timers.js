@@ -15,9 +15,25 @@
  * `bonusMs`, separado de `totalTime`, para que a duracao configurada continue
  * visivel e o reset volte ao valor original sem precisar lembrar dele.
  *
- * `offsetMs` e o ponto de partida: uma aula que ja corre ha 5h15 comeca a
- * contar dali, nao do zero. Ele fica separado de `elapsed` para que o Reset
- * volte ao ponto de partida em vez de zerar - zerar perderia a informacao.
+ * O ganho e DERIVADO do decorrido da fonte, nunca somado passo a passo:
+ *
+ *     bonusMs = (floor(decorridoDaFonte / everyMs) - baseCount) * addMs
+ *
+ * `baseCount` e a contagem de concessoes em que o ganho vale zero, movida
+ * apenas pelo Reset. Como a formula so le o estado atual, reaplicar a mesma
+ * regra, perder um tick ou reconectar chega sempre ao mesmo numero - somar
+ * incrementalmente duplicava o bonus a cada reenvio da regra.
+ *
+ * `offsetMs` e o tempo ja consumido fora deste cronometro: uma aula que ja
+ * corre ha 5h15, ou um intervalo do qual ja se gastaram 30 minutos. Ele fica
+ * separado de `elapsed` para que o Reset volte ao ponto de partida em vez de
+ * zerar - zerar perderia a informacao.
+ *
+ * O consumo e guardado CRU, sem teto pelo total: um intervalo que ganha 5 min
+ * por hora pode ter 30 minutos gastos quando so 25 foram concedidos. O excesso
+ * fica visivel em `overspentMs` e e abatido sozinho conforme a regra concede
+ * mais tempo. Limitar o consumo ao total no momento em que ele e informado
+ * perderia essa divida e daria de presente um tempo que ja foi usado.
  */
 const { randomBytes } = require("crypto");
 
@@ -26,13 +42,17 @@ const DIRECTIONS = new Set(["down", "up"]);
 module.exports = {
   DIRECTIONS,
   buildTimerState,
+  computeBonusMs,
   createTimer,
+  getAccrualEarned,
   getElapsed,
+  getOverspentMs,
   getRemaining,
   getStartElapsed,
   getTotalTime,
   isTimerFinished,
   pauseTimer,
+  reanchorStartElapsed,
   resetAccrual,
   resetTimer,
   seekTimer,
@@ -134,13 +154,55 @@ function getTotalTime(timer) {
 }
 
 /**
- * Decorrido inicial: o ponto de partida, limitado ao total para nunca nascer
- * ja estourado caso a duracao tenha encolhido depois.
+ * Decorrido inicial: o consumo registrado, limitado ao total efetivo.
+ *
+ * O teto e aplicado AQUI, na leitura, e nao ao guardar: `offsetMs` mantem o
+ * consumo real e este limite so impede que a contagem nasca estourada. Quando
+ * a regra concede mais tempo, o teto sobe junto e a parte que estava excedendo
+ * volta a ser contada - e assim que a divida se paga sozinha.
+ *
  * @param {object} timer
  * @returns {number}
  */
 function getStartElapsed(timer) {
   return Math.min(timer.offsetMs, getTotalTime(timer));
+}
+
+/**
+ * Consumo registrado que ainda nao cabe no total efetivo.
+ *
+ * Um intervalo com 25 min ganhos e 30 min gastos esta 5 min no vermelho: o
+ * cronometro mostra zero e este valor diz o quanto do proximo ganho ja esta
+ * comprometido.
+ *
+ * @param {object} timer
+ * @returns {number}
+ */
+function getOverspentMs(timer) {
+  return Math.max(0, timer.offsetMs - getTotalTime(timer));
+}
+
+/**
+ * Reposiciona um cronometro parado no seu ponto de partida atual.
+ *
+ * Chamado depois que o total efetivo cresce: o consumo que nao cabia passa a
+ * caber e precisa entrar na contagem, senao o tempo recem-ganho apareceria
+ * inteiro como disponivel mesmo ja tendo sido gasto.
+ *
+ * Nunca anda para tras (`elapsed` so cresce) e nao mexe em quem esta rodando -
+ * um cronometro em andamento ja esta consumindo em tempo real.
+ *
+ * @param {object} timer
+ * @returns {boolean} `true` se o decorrido mudou.
+ */
+function reanchorStartElapsed(timer) {
+  if (timer.status === "running") return false;
+
+  const start = getStartElapsed(timer);
+  if (timer.elapsed >= start) return false;
+
+  timer.elapsed = start;
+  return true;
 }
 
 /**
@@ -193,10 +255,19 @@ function pauseTimer(timer) {
  * Volta ao inicio mantendo nome, direcao, total configurado e a regra de
  * ganho. O tempo ja ganho e descartado: reset e recomeco limpo, senao o
  * bonus da rodada anterior entraria somado na proxima.
+ *
+ * O consumo registrado tambem cai para o que a duracao configurada consegue
+ * bancar. Sem isso, um intervalo com 30 min gastos sobre 25 min ganhos sairia
+ * do Reset devendo esses 25 min - e a rodada nova ja comecaria zerada, o
+ * oposto de recomeco limpo. O consumo que a propria duracao banca continua de
+ * pe, porque `Reset` volta ao ponto de partida, nao a zero.
+ *
  * @param {object} timer
+ * @param {number} sourceElapsed decorrido atual da fonte da regra de ganho.
  */
-function resetTimer(timer) {
-  resetAccrual(timer);
+function resetTimer(timer, sourceElapsed = 0) {
+  resetAccrual(timer, sourceElapsed);
+  timer.offsetMs = Math.min(timer.offsetMs, getTotalTime(timer));
   timer.elapsed = getStartElapsed(timer);
   timer.startTime = null;
   timer.status = "stopped";
@@ -220,14 +291,57 @@ function seekTimer(timer, offsetMs) {
 }
 
 /**
- * Descarta o tempo ganho e zera o contador de concessoes.
+ * Descarta o tempo ganho comecando uma rodada nova.
+ *
+ * Como o bonus e derivado do decorrido da fonte, zerar `bonusMs` sozinho nao
+ * bastaria: o proximo tick recalcularia tudo de volta. O que zera de verdade e
+ * mover `baseCount` para a contagem de concessoes de agora, o novo zero da
+ * regra.
+ *
  * @param {object} timer
+ * @param {number} sourceElapsed decorrido atual da fonte da regra.
  */
-function resetAccrual(timer) {
+function resetAccrual(timer, sourceElapsed = 0) {
   timer.bonusMs = 0;
   if (timer.accrual) {
+    timer.accrual.baseCount = getAccrualEarned(timer.accrual, sourceElapsed);
     timer.accrual.grantedCount = 0;
   }
+}
+
+/**
+ * Quantas vezes a fonte ja completou o periodo da regra.
+ * @param {object} rule
+ * @param {number} sourceElapsed
+ * @returns {number}
+ */
+function getAccrualEarned(rule, sourceElapsed) {
+  if (!rule || rule.everyMs <= 0) return 0;
+  return Math.floor(Math.max(0, sourceElapsed) / rule.everyMs);
+}
+
+/**
+ * Tempo ganho a que o cronometro tem direito AGORA, do zero.
+ *
+ * Formula fechada em vez de soma incremental: o resultado depende so do estado
+ * atual, entao reaplicar a regra, perder ticks ou reconectar nao muda nada.
+ *
+ * @param {object} timer
+ * @param {number} sourceElapsed decorrido da fonte da regra.
+ * @param {number} maxTimerMs teto absoluto de um cronometro.
+ * @returns {number}
+ */
+function computeBonusMs(timer, sourceElapsed, maxTimerMs) {
+  const rule = timer.accrual;
+  if (!rule) return 0;
+
+  const grants = Math.max(
+    0,
+    getAccrualEarned(rule, sourceElapsed) - rule.baseCount,
+  );
+  const teto = Math.max(0, maxTimerMs - timer.totalTime);
+
+  return Math.min(grants * rule.addMs, teto);
 }
 
 /**
@@ -250,7 +364,11 @@ function buildTimerState(timer) {
     totalTime,
     baseTotalTime: timer.totalTime,
     bonusMs: timer.bonusMs,
+    // `offsetMs` e o consumo cru; `startElapsed` e o quanto dele ja cabe no
+    // total e `overspentMs` o que sobrou para o proximo ganho abater.
     offsetMs: timer.offsetMs,
+    startElapsed: getStartElapsed(timer),
+    overspentMs: getOverspentMs(timer),
     elapsed: Math.min(totalTime, getElapsed(timer)),
     remaining,
     pct: totalTime > 0 ? remaining / totalTime : 1,

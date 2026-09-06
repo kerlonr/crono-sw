@@ -20,6 +20,7 @@
     getAccrualLabel,
     getBonusLabel,
     getDisplayMs,
+    getLedgerLabel,
     getPhase,
     getTimerLabel,
     getTimerMetaLabel,
@@ -94,6 +95,8 @@
     cfgOffM: el("cfg-off-m"),
     cfgOffS: el("cfg-off-s"),
     cfgOffsetHint: el("cfg-offset-hint"),
+    cfgLedger: el("cfg-ledger"),
+    spendRow: el("cfg-spend-row"),
     applyOffset: el("btn-apply-offset"),
     clearOffset: el("btn-clear-offset"),
     applyTime: el("btn-apply-time"),
@@ -355,6 +358,13 @@
 
       if (paraDuracao) fillTimeInputs(alvo);
       else fillOffsetInputs(alvo);
+    });
+
+    // Registro rapido: soma ao que o servidor ja tem e aplica num clique.
+    ui.config?.addEventListener("click", (event) => {
+      const botao = event.target.closest("[data-spend-step]");
+      if (!botao) return;
+      registrarConsumo(Number(botao.dataset.spendStep));
     });
     ui.saveModel?.addEventListener("click", saveModelFromSelected);
     ui.setPrimary?.addEventListener("click", () => {
@@ -728,9 +738,13 @@
       );
     }
 
-    if (decorrido > totalDoFormulario - 1000) {
+    // Mede contra o total EFETIVO (duracao do formulario + o que ja foi ganho
+    // por regra), senao um cronometro com bonus era recusado por estourar uma
+    // duracao que nao e mais a que vale.
+    const totalEfetivo = totalDoFormulario + timer.bonusMs;
+    if (decorrido > totalEfetivo) {
       return showFeedback(
-        `Começou há ${formatTime(decorrido)}, mais que a duração de ${formatTime(totalDoFormulario)}.`,
+        `Começou há ${formatTime(decorrido)}, mais que os ${formatTime(totalEfetivo)} disponíveis.`,
         "error",
       );
     }
@@ -758,13 +772,22 @@
     );
   }
 
+  /**
+   * Registra quanto ja foi consumido/decorrido fora do cronometro.
+   *
+   * Nao recusa mais valores acima do total: um intervalo que ganha tempo por
+   * regra pode ter sido usado alem do que ja foi concedido, e era exatamente
+   * esse caso que ficava sem saida - o valor era rejeitado e nao havia como
+   * descontar o que ja tinha sido gasto. O excesso vira divida, abatida
+   * sozinha conforme a regra concede mais tempo.
+   */
   function applyOffset(ms, iniciar) {
     const timer = findTimer(selectedTimerId);
     if (!timer) return;
 
-    if (ms > timer.totalTime - 1000) {
+    if (ms > MAX_TIMER_MS) {
       return showFeedback(
-        `O valor precisa ser menor que ${formatTime(timer.totalTime)}.`,
+        `O valor precisa ser menor que ${MAX_TIMER_HOURS} horas.`,
         "error",
       );
     }
@@ -772,13 +795,42 @@
     emitUpdate({ offsetMs: ms });
     if (iniciar) startSelected();
 
+    if (ms === 0) {
+      return showFeedback("Voltou para zero.", "success");
+    }
+
     const rotulo = timer.direction === "up" ? "Decorrido" : "Consumido";
-    showFeedback(
-      ms > 0
-        ? `${rotulo} definido em ${formatTime(ms)}${iniciar ? " e iniciado" : ""}.`
-        : "Voltou para zero.",
-      "success",
-    );
+    const excedente = ms - timer.totalTime;
+    const sufixo =
+      excedente > 0
+        ? ` — ${formatTime(excedente)} além do disponível, abatidos do próximo ganho.`
+        : iniciar
+          ? " e iniciado."
+          : ".";
+
+    showFeedback(`${rotulo} definido em ${formatTime(ms)}${sufixo}`, "success");
+  }
+
+  /**
+   * Soma ao consumo JA REGISTRADO no servidor e aplica na hora.
+   *
+   * Editar o valor absoluto exige lembrar do total anterior e somar de cabeca;
+   * o gesto real e "acabei de gastar mais 10 minutos".
+   */
+  function registrarConsumo(delta) {
+    const timer = findTimer(selectedTimerId);
+    if (!timer) return;
+
+    if (timer.status === "running") {
+      return showFeedback(
+        "Pause o cronômetro para registrar consumo.",
+        "error",
+      );
+    }
+
+    const alvo = Math.max(0, timer.offsetMs + delta);
+    fillOffsetInputs(alvo);
+    applyOffset(alvo, false);
   }
 
   function applyAccrual() {
@@ -946,18 +998,28 @@
     ui.applyStart.disabled = running;
     ui.cfgTimeHint.textContent = running
       ? "Pause o cronômetro para trocar o tempo."
-      : "Trocar o tempo zera a contagem deste cronômetro.";
+      : "Zera a contagem. O tempo ganho por regra continua valendo.";
 
     ui.applyOffset.disabled = running;
     ui.offsetStart.disabled = running;
     ui.clearOffset.disabled = running || timer.offsetMs === 0;
+    if (ui.spendRow) ui.spendRow.hidden = running;
     ui.cfgOffsetHint.textContent = running
       ? `Pause para ajustar ${progressivo ? "o decorrido" : "o consumido"}.`
-      : timer.offsetMs > 0
-        ? `Parte de ${formatTime(timer.offsetMs)}. O Reset volta para cá, não para zero.`
-        : progressivo
-          ? "Use quando a contagem já vem de antes — ex.: a aula corre há 05:15:00."
-          : "Use para registrar o que já foi gasto sem o cronômetro rodando.";
+      : timer.overspentMs > 0
+        ? `${formatTime(timer.offsetMs)} usados de ${formatTime(timer.totalTime)} disponíveis: ${formatTime(timer.overspentMs)} saem do próximo ganho.`
+        : timer.offsetMs > 0
+          ? `Parte de ${formatTime(timer.offsetMs)}. O Reset volta para cá, não para zero.`
+          : progressivo
+            ? "Use quando a contagem já vem de antes — ex.: a aula corre há 05:15:00."
+            : "Use para registrar o que já foi gasto sem o cronômetro rodando.";
+
+    if (ui.cfgLedger) {
+      const extrato = getLedgerLabel(timer);
+      ui.cfgLedger.textContent = extrato;
+      ui.cfgLedger.hidden = !extrato;
+      ui.cfgLedger.dataset.state = timer.overspentMs > 0 ? "over" : "ok";
+    }
 
     ui.setPrimary.disabled = isPrimary;
     ui.setPrimary.textContent = isPrimary

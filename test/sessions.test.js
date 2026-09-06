@@ -449,15 +449,10 @@ describe("ponto de partida", () => {
     assert.equal(timer.status, "stopped");
   });
 
-  it("recusa ponto de partida fora da faixa e enquanto roda", () => {
+  it("recusa valor negativo e mudanca enquanto roda", () => {
     const { store, session, timer } = cenario();
 
     assert.equal(store.updateTimer(session, timer.id, { offsetMs: -1 }), false);
-    assert.equal(
-      store.updateTimer(session, timer.id, { offsetMs: 80 * HOUR }),
-      false,
-      "nao pode partir exatamente no total",
-    );
 
     store.startSessionTimer(session, timer.id);
     assert.equal(
@@ -468,17 +463,38 @@ describe("ponto de partida", () => {
     stopSession(store, session);
   });
 
-  it("encolher a duracao puxa o ponto de partida junto", () => {
+  it("aceita consumo igual ao total, zerando o restante", () => {
+    const { store, session, timer } = cenario();
+
+    assert.equal(
+      store.updateTimer(session, timer.id, { offsetMs: 80 * HOUR }),
+      true,
+      "informar que consumiu tudo e uma resposta valida",
+    );
+    assert.equal(store.getRemaining(timer), 0);
+  });
+
+  it("encolher a duracao preserva o consumo registrado", () => {
     const { store, session, timer } = cenario();
     store.updateTimer(session, timer.id, { offsetMs: 5 * HOUR });
 
     store.updateTimer(session, timer.id, { totalTime: 2 * HOUR });
 
-    assert.ok(
-      timer.offsetMs <= 2 * HOUR - 1000,
-      `offset sobrou acima do total: ${timer.offsetMs}`,
+    assert.equal(
+      timer.offsetMs,
+      5 * HOUR,
+      "o consumo real nao e reescrito pela nova duracao",
     );
-    assert.ok(store.getRemaining(timer) > 0, "precisa sobrar tempo para contar");
+    assert.equal(
+      store.getRemaining(timer),
+      0,
+      "5h consumidas de uma duracao de 2h nao deixam tempo a contar",
+    );
+
+    const estado = store
+      .buildSessionState(session)
+      .timers.find((t) => t.id === timer.id);
+    assert.equal(estado.overspentMs, 3 * HOUR);
   });
 
   it("zerar o ponto de partida devolve a contagem ao zero", () => {
@@ -586,6 +602,133 @@ describe("regra de ganho de tempo", () => {
     assert.equal(intervalo.bonusMs, 0);
     assert.equal(intervalo.accrual.grantedCount, 0);
     assert.equal(intervalo.accrual.sourceTimerId, aula.id, "a regra continua ligada");
+  });
+
+  it("reaplicar a mesma regra nao duplica o tempo ja ganho", () => {
+    const { store, session, aula, intervalo } = cenarioAula();
+
+    correr(aula, 5 * HOUR);
+    store.applyAccruals(session);
+    assert.equal(intervalo.bonusMs, 25 * MIN);
+
+    // Mexer em qualquer campo da regra no painel reenvia a regra inteira.
+    store.updateTimer(session, intervalo.id, {
+      accrual: { sourceTimerId: aula.id, everyMs: HOUR, addMs: 5 * MIN },
+    });
+    store.applyAccruals(session);
+
+    assert.equal(intervalo.bonusMs, 25 * MIN, "o bonus nao pode dobrar");
+    assert.equal(intervalo.accrual.grantedCount, 5);
+  });
+
+  it("descontar o que ja foi consumido do intervalo", () => {
+    const { store, session, aula, intervalo } = cenarioAula();
+
+    correr(aula, 5 * HOUR);
+    store.applyAccruals(session);
+    assert.equal(store.getRemaining(intervalo), 50 * MIN, "25min de base + 25 ganhos");
+
+    assert.equal(
+      store.updateTimer(session, intervalo.id, { offsetMs: 12 * MIN }),
+      true,
+    );
+
+    assert.equal(store.getRemaining(intervalo), 38 * MIN);
+    assert.equal(intervalo.bonusMs, 25 * MIN, "descontar nao apaga o ganho");
+  });
+
+  it("aplicar duracao e consumo juntos preserva o tempo ganho", () => {
+    const { store, session, aula, intervalo } = cenarioAula();
+
+    correr(aula, 5 * HOUR);
+    store.applyAccruals(session);
+
+    // O painel manda os dois campos numa unica atualizacao.
+    store.updateTimer(session, intervalo.id, {
+      totalTime: 25 * MIN,
+      offsetMs: 12 * MIN,
+    });
+
+    assert.equal(intervalo.bonusMs, 25 * MIN);
+    assert.equal(intervalo.offsetMs, 12 * MIN);
+    assert.equal(store.getRemaining(intervalo), 38 * MIN);
+  });
+
+  it("consumo acima do ganho vira divida e e abatido pelo ganho seguinte", () => {
+    const { store, session, aula, intervalo } = cenarioAula();
+
+    correr(aula, HOUR);
+    store.applyAccruals(session);
+    assert.equal(store.getRemaining(intervalo), 30 * MIN, "25min de base + 5 ganhos");
+
+    // Gastou 45min de intervalo, mais do que os 30 disponiveis.
+    store.updateTimer(session, intervalo.id, { offsetMs: 45 * MIN });
+
+    let estado = store
+      .buildSessionState(session)
+      .timers.find((t) => t.id === intervalo.id);
+    assert.equal(estado.remaining, 0);
+    assert.equal(estado.overspentMs, 15 * MIN, "15min no vermelho");
+
+    // Na 4a hora o total chega a 45min e a divida acaba de ser quitada.
+    correr(aula, 4 * HOUR);
+    store.applyAccruals(session);
+
+    estado = store
+      .buildSessionState(session)
+      .timers.find((t) => t.id === intervalo.id);
+    assert.equal(estado.overspentMs, 0);
+    assert.equal(estado.remaining, 0, "quitou, mas ainda nao sobrou nada");
+    assert.equal(intervalo.elapsed, 45 * MIN, "o consumo entrou na contagem");
+
+    // Da hora seguinte em diante o ganho e saldo livre de verdade.
+    correr(aula, 5 * HOUR);
+    store.applyAccruals(session);
+
+    estado = store
+      .buildSessionState(session)
+      .timers.find((t) => t.id === intervalo.id);
+    assert.equal(estado.remaining, 5 * MIN);
+  });
+
+  it("um cronometro com bonus termina zerado, sem tempo fantasma", () => {
+    const { store, session, aula, intervalo } = cenarioAula();
+
+    correr(aula, 3 * HOUR);
+    store.applyAccruals(session);
+
+    intervalo.status = "running";
+    intervalo.elapsed = 40 * MIN;
+    intervalo.startTime = Date.now();
+    store.broadcastSession(session.id);
+
+    assert.equal(intervalo.status, "finished");
+    assert.equal(store.getRemaining(intervalo), 0);
+  });
+
+  it("Reset limpa a divida para a rodada nova comecar cheia", () => {
+    const { store, session, aula, intervalo } = cenarioAula();
+
+    correr(aula, 2 * HOUR);
+    store.applyAccruals(session);
+    store.updateTimer(session, intervalo.id, { offsetMs: 35 * MIN });
+
+    store.resetSessionTimer(session, intervalo.id);
+
+    assert.equal(intervalo.bonusMs, 0);
+    assert.equal(
+      intervalo.offsetMs,
+      25 * MIN,
+      "sobra o consumo que a propria duracao banca",
+    );
+
+    correr(aula, 3 * HOUR);
+    store.applyAccruals(session);
+    assert.equal(
+      store.getRemaining(intervalo),
+      5 * MIN,
+      "a hora seguinte concede 5min livres, nao abate divida velha",
+    );
   });
 
   it("remover a fonte desliga a regra em vez de deixa-la morta", () => {

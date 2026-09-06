@@ -10,13 +10,16 @@ const { randomBytes } = require("crypto");
 
 const {
   buildTimerState,
+  computeBonusMs,
   createTimer,
+  getAccrualEarned,
   getElapsed,
   getRemaining,
   getStartElapsed,
   getTotalTime,
   isTimerFinished,
   pauseTimer,
+  reanchorStartElapsed,
   resetAccrual,
   resetTimer,
   sanitizeDirection,
@@ -358,6 +361,14 @@ function createSessionStore({
 
         alvo.accrual = sanitizeAccrual(session, alvo.id, timer.accrual);
         if (alvo.accrual) {
+          // Snapshots antigos so tinham `grantedCount`, e neles o bonus era a
+          // soma de todas as concessoes desde o zero - o que corresponde a
+          // `baseCount` zero. Manter esse padrao faz o primeiro tick apos o
+          // restore chegar ao mesmo bonus que estava salvo.
+          alvo.accrual.baseCount = Math.max(
+            0,
+            Math.trunc(Number(timer.accrual.baseCount) || 0),
+          );
           alvo.accrual.grantedCount = Math.max(
             0,
             Math.trunc(Number(timer.accrual.grantedCount) || 0),
@@ -428,13 +439,18 @@ function createSessionStore({
   }
 
   /**
-   * Concede o tempo ganho pelas regras de `accrual`.
+   * Recalcula o tempo ganho pelas regras de `accrual`.
    *
-   * O contador de concessoes (`grantedCount`) e recalculado do decorrido da
-   * fonte a cada tick, entao tick perdido, atraso ou reconexao nao duplicam
-   * nem pulam um ganho.
+   * O bonus e sempre recomputado do zero a partir do decorrido da fonte, nunca
+   * somado ao valor anterior. Isso torna a operacao idempotente: tick perdido,
+   * atraso, reconexao ou reenvio da mesma regra chegam todos ao mesmo numero.
+   * A versao incremental duplicava o bonus toda vez que a regra era reaplicada,
+   * porque a regra voltava com o contador de concessoes zerado.
    *
-   * @returns {boolean} `true` se algum cronometro ganhou tempo agora.
+   * Depois de conceder, quem estava com consumo acima do total efetivo e
+   * reposicionado: o tempo novo entra abatendo a divida, nao como saldo livre.
+   *
+   * @returns {boolean} `true` se algum cronometro mudou.
    */
   function applyAccruals(session) {
     let changed = false;
@@ -448,22 +464,29 @@ function createSessionStore({
       );
       if (!source) continue;
 
-      const earned = Math.floor(getElapsed(source) / rule.everyMs);
-      if (earned === rule.grantedCount) continue;
+      const sourceElapsed = getElapsed(source);
+      const bonusMs = computeBonusMs(timer, sourceElapsed, maxTimerMs);
+      const grantedCount = Math.max(
+        0,
+        getAccrualEarned(rule, sourceElapsed) - rule.baseCount,
+      );
 
-      if (earned > rule.grantedCount) {
-        const ganho = (earned - rule.grantedCount) * rule.addMs;
-        const teto = Math.max(0, maxTimerMs - timer.totalTime);
-        timer.bonusMs = Math.min(timer.bonusMs + ganho, teto);
-
-        // Um intervalo que tinha zerado volta a ficar disponivel, pausado,
-        // para o admin decidir quando usar o tempo recem-ganho.
-        if (timer.status === "finished" && getRemaining(timer) > 0) {
-          timer.status = "paused";
-        }
+      if (bonusMs === timer.bonusMs && grantedCount === rule.grantedCount) {
+        continue;
       }
 
-      rule.grantedCount = earned;
+      timer.bonusMs = bonusMs;
+      rule.grantedCount = grantedCount;
+
+      // O consumo que nao cabia no total antigo passa a caber agora.
+      reanchorStartElapsed(timer);
+
+      // Um intervalo que tinha zerado volta a ficar disponivel, pausado, para
+      // o admin decidir quando usar o tempo recem-ganho.
+      if (timer.status === "finished" && getRemaining(timer) > 0) {
+        timer.status = "paused";
+      }
+
       changed = true;
     }
 
@@ -473,7 +496,10 @@ function createSessionStore({
   function finishDueTimers(session) {
     for (const timer of session.timers) {
       if (timer.status === "running" && isTimerFinished(timer)) {
-        timer.elapsed = timer.totalTime;
+        // Total EFETIVO, com o ganho incluido: fixar no total configurado
+        // deixava um cronometro com bonus "finalizado" e ainda com tempo
+        // sobrando, porque o restante voltava a ser positivo no ato.
+        timer.elapsed = getTotalTime(timer);
         timer.startTime = null;
         timer.status = "finished";
       }
@@ -566,8 +592,11 @@ function createSessionStore({
 
   /**
    * Nome e direcao mudam a qualquer momento porque so afetam a apresentacao.
-   * O tempo total so muda com o cronometro fora do "running" e zera a
+   * O tempo total so muda com o cronometro fora do "running" e reposiciona a
    * contagem, evitando um estado em que o decorrido ja passou do novo total.
+   *
+   * A ordem importa: a duracao entra antes do consumo, para que o consumo seja
+   * medido contra o total que vale no fim da operacao.
    */
   function updateTimer(
     session,
@@ -598,15 +627,18 @@ function createSessionStore({
       const safeTotalTime = sanitizeTimerMs(totalTime);
       if (safeTotalTime !== null) {
         timer.totalTime = safeTotalTime;
-        // O ponto de partida nao pode sobrar acima da nova duracao.
-        timer.offsetMs = Math.min(timer.offsetMs, Math.max(0, safeTotalTime - 1000));
-        resetTimer(timer);
+        // Trocar a duracao e uma edicao, nao um recomeco: o tempo ja ganho
+        // pela regra continua valendo, como diz a mesma promessa que vale
+        // para o consumo. So o Reset descarta o ganho. Antes isto chamava
+        // `resetTimer`, e aplicar duracao e consumo na mesma operacao apagava
+        // os minutos acumulados.
+        seekTimer(timer, timer.offsetMs);
         changed = true;
       }
     }
 
     if (offsetMs !== undefined && timer.status !== "running") {
-      const safeOffset = sanitizeOffsetMs(timer, offsetMs);
+      const safeOffset = sanitizeOffsetMs(offsetMs);
       if (safeOffset !== null) {
         seekTimer(timer, safeOffset);
         changed = true;
@@ -617,17 +649,23 @@ function createSessionStore({
   }
 
   /**
-   * Ponto de partida valido: de zero ate um segundo antes do total, para que
-   * o cronometro sempre tenha ao menos um segundo para contar.
+   * Consumo valido: de zero ate o teto absoluto de um cronometro.
+   *
+   * Deliberadamente NAO limitado ao total do cronometro. Um intervalo que ganha
+   * 5 min por hora pode ter 30 minutos gastos quando so 25 foram concedidos, e
+   * recusar esse valor era justamente o que impedia de descontar o que ja tinha
+   * sido consumido - a recusa ainda por cima era silenciosa. O teto pelo total
+   * e aplicado na leitura (`getStartElapsed`), preservando a divida ate a regra
+   * conceder tempo suficiente para abate-la.
    */
-  function sanitizeOffsetMs(timer, value) {
+  function sanitizeOffsetMs(value) {
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) return null;
 
     const safeValue = Math.trunc(parsed);
-    if (safeValue < 0 || safeValue > getTotalTime(timer) - 1000) return null;
+    if (safeValue < 0) return null;
 
-    return safeValue;
+    return Math.min(safeValue, maxTimerMs);
   }
 
   function setPrimaryTimer(session, timerId) {
@@ -672,18 +710,29 @@ function createSessionStore({
     const timer = getTimer(session, timerId);
     if (!timer) return false;
 
-    resetTimer(timer);
+    resetSessionTimerState(session, timer);
 
     // Zerar a fonte tambem zera o que ela concedeu: sem isso o bonus da
-    // rodada anterior somaria com o da proxima.
+    // rodada anterior somaria com o da proxima. Como o bonus e derivado, o
+    // que zera de verdade e mover o `baseCount` para a contagem de agora - ja
+    // com a fonte reposicionada.
     for (const dependente of session.timers) {
       if (dependente.accrual?.sourceTimerId === timerId) {
-        resetAccrual(dependente);
+        resetAccrual(dependente, getElapsed(timer));
       }
     }
 
     syncSessionInterval(session);
     return true;
+  }
+
+  /** Reset de um cronometro resolvendo sozinho a fonte da sua regra de ganho. */
+  function resetSessionTimerState(session, timer) {
+    const source = timer.accrual
+      ? getTimer(session, timer.accrual.sourceTimerId)
+      : null;
+
+    resetTimer(timer, source ? getElapsed(source) : 0);
   }
 
   /**
@@ -695,7 +744,7 @@ function createSessionStore({
       start: startTimer,
       pause: pauseTimer,
       reset: (timer) => {
-        resetTimer(timer);
+        resetSessionTimerState(session, timer);
         return true;
       },
     }[action];
@@ -743,7 +792,22 @@ function createSessionStore({
     const addMs = sanitizeSpan(value.addMs, minAccrualAddMs);
     if (everyMs === null || addMs === null) return null;
 
-    return { sourceTimerId, everyMs, addMs, grantedCount: 0 };
+    // `baseCount` sai do valor anterior quando a regra e a mesma, para que
+    // reabrir os ajustes ou mexer num campo e voltar atras nao mova o zero da
+    // contagem. Regra nova comeca em zero e credita o que a fonte ja acumulou.
+    const atual = getTimer(session, timerId)?.accrual;
+    const mesmaRegra =
+      atual &&
+      atual.sourceTimerId === sourceTimerId &&
+      atual.everyMs === everyMs;
+
+    return {
+      sourceTimerId,
+      everyMs,
+      addMs,
+      baseCount: mesmaRegra ? atual.baseCount : 0,
+      grantedCount: 0,
+    };
   }
 
   function sanitizeSpan(value, minimo) {

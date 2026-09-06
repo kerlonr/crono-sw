@@ -142,7 +142,11 @@
       pct: sanitizePct(source.pct),
       baseTotalTime: sanitizeMs(source.baseTotalTime ?? source.totalTime),
       bonusMs: sanitizeMs(source.bonusMs),
+      // `offsetMs` e o consumo cru, que pode passar do total; `startElapsed` e
+      // a parte que ja cabe nele e `overspentMs` o que falta caber.
       offsetMs: sanitizeMs(source.offsetMs),
+      startElapsed: Math.min(totalTime, sanitizeMs(source.startElapsed)),
+      overspentMs: sanitizeMs(source.overspentMs),
       accrual: sanitizeAccrual(source.accrual),
       index,
     };
@@ -175,8 +179,39 @@
    * @returns {string}
    */
   function getBonusLabel(timer) {
-    if (!timer.bonusMs) return "";
-    return `+${formatCompactDuration(timer.bonusMs)} ganhos`;
+    const partes = [];
+    if (timer.bonusMs) partes.push(`+${formatCompactDuration(timer.bonusMs)} ganhos`);
+    if (timer.offsetMs) partes.push(`−${formatCompactDuration(timer.offsetMs)} usados`);
+    if (timer.overspentMs) {
+      partes.push(`${formatCompactDuration(timer.overspentMs)} no vermelho`);
+    }
+
+    return partes.join(" · ");
+  }
+
+  /**
+   * Extrato do intervalo, na ordem em que a conta acontece.
+   *
+   * O saldo de um cronometro com regra de ganho e uma conta de tres parcelas
+   * (duracao + ganho - usado) e mostrar so o numero final deixava o admin sem
+   * saber de onde ele saiu.
+   *
+   * @param {object} timer
+   * @returns {string}
+   */
+  function getLedgerLabel(timer) {
+    if (!timer.bonusMs && !timer.offsetMs) return "";
+
+    const linha = [`Base ${formatCompactDuration(timer.baseTotalTime)}`];
+    if (timer.bonusMs) linha.push(`+ ${formatCompactDuration(timer.bonusMs)} ganhos`);
+    if (timer.offsetMs) linha.push(`− ${formatCompactDuration(timer.offsetMs)} usados`);
+    linha.push(`= ${formatCompactDuration(timer.remaining)} disponíveis`);
+
+    const extrato = linha.join(" ");
+
+    return timer.overspentMs
+      ? `${extrato} (${formatCompactDuration(timer.overspentMs)} além do ganho, abatidos do próximo)`
+      : extrato;
   }
 
   /**
@@ -308,6 +343,7 @@
     formatTime,
     getAccrualLabel,
     getBonusLabel,
+    getLedgerLabel,
     getDisplayMs,
     getPhase,
     getTimerLabel,

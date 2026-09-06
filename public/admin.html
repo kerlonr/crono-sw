@@ -33,7 +33,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;600;900&display=swap"
     rel="stylesheet" />
   <script src="/socket.io/socket.io.js"></script>
-  <link rel="stylesheet" href="/assets/css/admin.css?v=20260905r" />
+  <link rel="stylesheet" href="/assets/css/admin.css?v=20260906a" />
 </head>
 
 <body>
@@ -223,12 +223,23 @@
         <span class="field-hint" id="clock-hint"></span>
       </div>
 
+      <div class="spend-row" id="cfg-spend-row">
+        <span class="spend-label">Acabei de usar</span>
+        <div class="steppers" role="group" aria-label="Registrar consumo agora">
+          <button type="button" data-spend-step="300000">+5m</button>
+          <button type="button" data-spend-step="600000">+10m</button>
+          <button type="button" data-spend-step="900000">+15m</button>
+          <button type="button" data-spend-step="-300000">−5m</button>
+        </div>
+      </div>
+
       <div class="setter-actions">
         <button class="btn-set btn-go" id="btn-offset-start" type="button">Aplicar e iniciar</button>
         <button class="btn-set" id="btn-apply-offset" type="button">Só aplicar</button>
         <button class="btn-set secondary" id="btn-clear-offset" type="button">Zerar</button>
       </div>
       <span class="field-hint" id="cfg-offset-hint"></span>
+      <p class="cfg-ledger" id="cfg-ledger" data-state="ok" hidden></p>
     </section>
 
     <section class="config-card">
@@ -337,9 +348,9 @@
     </button>
   </template>
 
-  <script src="/assets/js/crono-utils.js?v=20260905q"></script>
+  <script src="/assets/js/crono-utils.js?v=20260906a"></script>
   <script src="/assets/js/finish-sound.js?v=20260429b"></script>
-  <script src="/assets/js/admin.js?v=20260905s"></script>
+  <script src="/assets/js/admin.js?v=20260906a"></script>
 </body>
 
 </html>
