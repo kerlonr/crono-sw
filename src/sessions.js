@@ -1,4 +1,34 @@
+/**
+ * Armazenamento em memoria das sessoes.
+ *
+ * Cada sessao guarda uma lista ordenada de cronometros e o id daquele que vai
+ * em destaque no viewer (`primaryTimerId`). O tick e unico por sessao: enquanto
+ * houver ao menos um cronometro rodando, um `setInterval` transmite o estado
+ * completo; quando o ultimo para, o intervalo e liberado.
+ */
 const { randomBytes } = require("crypto");
+
+const {
+  buildTimerState,
+  computeBonusMs,
+  createTimer,
+  getAccrualEarned,
+  getElapsed,
+  getRemaining,
+  getStartElapsed,
+  getTotalTime,
+  isTimerFinished,
+  pauseTimer,
+  reanchorStartElapsed,
+  resetAccrual,
+  resetTimer,
+  sanitizeDirection,
+  seekTimer,
+  sanitizeTimerName,
+  startTimer,
+} = require("./timers");
+
+const TICK_INTERVAL_MS = 250;
 
 module.exports = {
   createSessionStore,
@@ -9,42 +39,72 @@ function createSessionStore({
   defaultTimerMs,
   io,
   maxTimerMs,
+  maxTimerNameLength,
+  maxTimersPerSession,
+  minAccrualAddMs,
+  minAccrualEveryMs,
   sessionIdPattern,
   sessionTtlMs,
+  timerIdPattern,
 }) {
   const sessions = new Map();
 
   return {
+    addTimer,
+    applyAccruals,
+    getSessionAuth,
+    hasAuth,
+    setSessionAuth,
     broadcastSession,
-    clearSessionInterval,
+    exportSessions,
+    importSessions,
+    buildSessionState,
+    bulkTimerAction,
     cleanupExpiredSessions,
+    clearSessionInterval,
     closeSession,
     createSession,
     deleteSession,
     emitSessionState,
     getAdminSession,
+    getPrimaryTimer,
     getRemaining,
     getSession,
+    getTimer,
     isValidAdminToken,
     isValidRole,
     isValidSessionId,
+    isValidTimerId,
     listActiveSessions,
+    moveTimer,
+    pauseSessionTimer,
+    removeTimer,
+    resetSessionTimer,
+    sanitizeAccrual,
     sanitizeTimerMs,
+    setPrimaryTimer,
+    startSessionTimer,
     touchSession,
+    updateTimer,
   };
+
+  // ---------------------------------------------------------------- sessoes
 
   function createSession() {
     const now = Date.now();
     const id = createSessionId();
-    const adminToken = randomBytes(18).toString("hex");
+    const firstTimer = createTimer({
+      existingIds: [],
+      maxNameLength: maxTimerNameLength,
+      totalTime: defaultTimerMs,
+    });
 
     const session = {
       id,
-      adminToken,
-      status: "stopped",
-      elapsed: 0,
-      startTime: null,
-      totalTime: defaultTimerMs,
+      adminToken: randomBytes(18).toString("hex"),
+      auth: null,
+      timers: [firstTimer],
+      primaryTimerId: firstTimer.id,
       interval: null,
       createdAt: now,
       lastAccessAt: now,
@@ -65,21 +125,53 @@ function createSessionStore({
     throw new Error("Unable to allocate a unique session id.");
   }
 
-  function getRemaining(session) {
-    const elapsed =
-      session.status === "running"
-        ? session.elapsed + (Date.now() - session.startTime)
-        : session.elapsed;
-
-    return Math.max(0, session.totalTime - elapsed);
-  }
-
   function touchSession(session) {
     session.lastAccessAt = Date.now();
   }
 
+  /**
+   * Guarda as credenciais ja derivadas. A senha em si nunca chega aqui.
+   * @param {object} session
+   * @param {object|null} credentials
+   */
+  function setSessionAuth(session, credentials) {
+    session.auth = credentials || null;
+    return true;
+  }
+
+  function getSessionAuth(session) {
+    return session.auth || null;
+  }
+
+  function hasAuth(session) {
+    return Boolean(session.auth);
+  }
+
+  // Uma aula de 80 horas pode ficar horas em pausa sem gerar tick nenhum, entao
+  // o TTL sozinho derrubaria a sessao com o admin ainda com a aba aberta.
+  //
+  // Duas condicoes salvam a sessao mesmo com o TTL vencido:
+  //   - ha cliente conectado;
+  //   - ha cronometro rodando. Em uso normal o tick renova o TTL a cada 250ms,
+  //     mas se a maquina suspender ou o processo ficar travado por mais tempo
+  //     que o TTL, o primeiro tick apos a volta encontraria a sessao vencida e
+  //     apagaria uma contagem em andamento. Um cronometro rodando e, por
+  //     definicao, uma sessao viva.
   function isSessionExpired(session) {
-    return Date.now() - session.lastAccessAt > sessionTtlMs;
+    if (Date.now() - session.lastAccessAt <= sessionTtlMs) {
+      return false;
+    }
+
+    if (session.timers.some((timer) => timer.status === "running")) {
+      return false;
+    }
+
+    return !hasConnectedClients(session.id);
+  }
+
+  function hasConnectedClients(sessionId) {
+    const room = io.sockets?.adapter?.rooms?.get(sessionId);
+    return Boolean(room && room.size > 0);
   }
 
   function cleanupExpiredSessions() {
@@ -120,31 +212,49 @@ function createSessionStore({
     return session;
   }
 
-  function clearSessionInterval(session) {
-    if (!session.interval) return;
-    clearInterval(session.interval);
-    session.interval = null;
+  function getAdminSession(socket) {
+    if (!socket.isAdmin || !isValidSessionId(socket.currentSession)) {
+      return null;
+    }
+
+    const session = getSession(socket.currentSession);
+    if (!session) return null;
+
+    touchSession(session);
+    return session;
   }
 
   function listActiveSessions() {
     return Array.from(sessions.values())
       .filter((session) => !isSessionExpired(session))
-      .map((session) => {
-        return {
-          id: session.id,
-          ...buildSessionState(session),
-          createdAt: session.createdAt,
-          lastAccessAt: session.lastAccessAt,
-        };
-      })
+      .map((session) => ({
+        id: session.id,
+        ...buildSessionState(session),
+        status: getSessionStatus(session),
+        hasAuth: hasAuth(session),
+        createdAt: session.createdAt,
+        lastAccessAt: session.lastAccessAt,
+      }))
       .sort((left, right) => {
-        const statusRank = getStatusRank(left.status) - getStatusRank(right.status);
+        const statusRank =
+          getStatusRank(left.status) - getStatusRank(right.status);
         if (statusRank !== 0) {
           return statusRank;
         }
 
         return right.createdAt - left.createdAt;
       });
+  }
+
+  /** Status agregado da sessao, usado para ordenar e resumir na visao geral. */
+  function getSessionStatus(session) {
+    for (const status of ["running", "paused", "stopped"]) {
+      if (session.timers.some((timer) => timer.status === status)) {
+        return status;
+      }
+    }
+
+    return session.timers.length ? "finished" : "stopped";
   }
 
   function getStatusRank(status) {
@@ -162,6 +272,148 @@ function createSessionStore({
     }
   }
 
+  /** Estado serializavel das sessoes, para o snapshot em disco. */
+  function exportSessions() {
+    return Array.from(sessions.values())
+      .filter((session) => !isSessionExpired(session))
+      .map((session) => ({
+        id: session.id,
+        adminToken: session.adminToken,
+        auth: session.auth,
+        primaryTimerId: session.primaryTimerId,
+        createdAt: session.createdAt,
+        lastAccessAt: session.lastAccessAt,
+        timers: session.timers.map((timer) => ({
+          id: timer.id,
+          name: timer.name,
+          direction: timer.direction,
+          status: timer.status,
+          elapsed: timer.elapsed,
+          startTime: timer.startTime,
+          totalTime: timer.totalTime,
+          offsetMs: timer.offsetMs,
+          bonusMs: timer.bonusMs,
+          accrual: timer.accrual,
+        })),
+      }));
+  }
+
+  /**
+   * Recarrega sessoes do snapshot. Cronometros que estavam rodando voltam
+   * rodando com o `startTime` original, entao o tempo em que o processo ficou
+   * fora do ar conta - a aula nao parou por causa do reinicio.
+   *
+   * @returns {number} quantas sessoes foram restauradas.
+   */
+  function importSessions(raw) {
+    if (!Array.isArray(raw)) return 0;
+
+    let restauradas = 0;
+
+    for (const item of raw) {
+      if (!item || !isValidSessionId(item.id) || sessions.has(item.id)) continue;
+      if (!isValidAdminToken(item.adminToken)) continue;
+      if (!Array.isArray(item.timers)) continue;
+
+      const timers = item.timers
+        .filter((timer) => timer && isValidTimerId(timer.id))
+        .map((timer) => ({
+          id: timer.id,
+          name: sanitizeTimerName(timer.name, maxTimerNameLength),
+          direction: sanitizeDirection(timer.direction),
+          status: ["stopped", "running", "paused", "finished"].includes(
+            timer.status,
+          )
+            ? timer.status
+            : "stopped",
+          elapsed: Math.max(0, Number(timer.elapsed) || 0),
+          startTime: Number.isFinite(timer.startTime) ? timer.startTime : null,
+          totalTime: sanitizeTimerMs(timer.totalTime) ?? defaultTimerMs,
+          offsetMs: Math.max(0, Number(timer.offsetMs) || 0),
+          bonusMs: Math.max(0, Number(timer.bonusMs) || 0),
+          accrual: null,
+        }))
+        .slice(0, maxTimersPerSession);
+
+      if (!timers.length) continue;
+
+      const session = {
+        id: item.id,
+        adminToken: item.adminToken,
+        auth: sanitizeStoredAuth(item.auth),
+        timers,
+        primaryTimerId: timers.some((t) => t.id === item.primaryTimerId)
+          ? item.primaryTimerId
+          : timers[0].id,
+        interval: null,
+        createdAt: Number(item.createdAt) || Date.now(),
+        lastAccessAt: Date.now(),
+      };
+
+      sessions.set(session.id, session);
+
+      // As regras entram depois, com a sessao ja montada, para a validacao
+      // conseguir conferir que a fonte existe.
+      for (const timer of item.timers) {
+        if (!timer?.accrual) continue;
+        const alvo = timers.find((t) => t.id === timer.id);
+        if (!alvo) continue;
+
+        alvo.accrual = sanitizeAccrual(session, alvo.id, timer.accrual);
+        if (alvo.accrual) {
+          // Snapshots antigos so tinham `grantedCount`, e neles o bonus era a
+          // soma de todas as concessoes desde o zero - o que corresponde a
+          // `baseCount` zero. Manter esse padrao faz o primeiro tick apos o
+          // restore chegar ao mesmo bonus que estava salvo.
+          alvo.accrual.baseCount = Math.max(
+            0,
+            Math.trunc(Number(timer.accrual.baseCount) || 0),
+          );
+          alvo.accrual.grantedCount = Math.max(
+            0,
+            Math.trunc(Number(timer.accrual.grantedCount) || 0),
+          );
+        }
+      }
+
+      syncSessionInterval(session);
+      restauradas += 1;
+    }
+
+    return restauradas;
+  }
+
+  // -------------------------------------------------------------- broadcast
+
+  function buildSessionState(session) {
+    return {
+      timers: session.timers.map(buildTimerState),
+      primaryTimerId: session.primaryTimerId,
+    };
+  }
+
+  function getPrimaryTimer(session) {
+    return (
+      session.timers.find((timer) => timer.id === session.primaryTimerId) ||
+      session.timers[0] ||
+      null
+    );
+  }
+
+  /**
+   * Payload no formato antigo (um unico cronometro). Mantido para que abas do
+   * viewer abertas antes do deploy continuem funcionando ate recarregarem.
+   */
+  function buildLegacyState(session) {
+    const primary = getPrimaryTimer(session);
+    if (!primary) {
+      return { status: "stopped", remaining: 0, totalTime: 0, pct: 1 };
+    }
+
+    const { status, remaining, totalTime, pct } = buildTimerState(primary);
+    return { status, remaining, totalTime, pct };
+  }
+
   function broadcastSession(sessionId) {
     const session = sessions.get(sessionId);
     if (!session) return;
@@ -171,37 +423,401 @@ function createSessionStore({
       return;
     }
 
-    const remaining = getRemaining(session);
-
-    if (session.status === "running" && remaining <= 0) {
-      session.elapsed = session.totalTime;
-      session.startTime = null;
-      session.status = "finished";
-      clearSessionInterval(session);
-    }
-
+    applyAccruals(session);
+    finishDueTimers(session);
+    syncSessionInterval(session);
     touchSession(session);
-    io.to(sessionId).emit("timer:tick", buildSessionState(session));
+
+    io.to(sessionId).emit("session:state", buildSessionState(session));
+    io.to(sessionId).emit("timer:tick", buildLegacyState(session));
   }
 
   function emitSessionState(target, session) {
     touchSession(session);
-    target.emit("timer:tick", buildSessionState(session));
+    target.emit("session:state", buildSessionState(session));
+    target.emit("timer:tick", buildLegacyState(session));
   }
 
-  function getAdminSession(socket) {
-    if (!socket.isAdmin || !isValidSessionId(socket.currentSession)) {
-      return null;
+  /**
+   * Recalcula o tempo ganho pelas regras de `accrual`.
+   *
+   * O bonus e sempre recomputado do zero a partir do decorrido da fonte, nunca
+   * somado ao valor anterior. Isso torna a operacao idempotente: tick perdido,
+   * atraso, reconexao ou reenvio da mesma regra chegam todos ao mesmo numero.
+   * A versao incremental duplicava o bonus toda vez que a regra era reaplicada,
+   * porque a regra voltava com o contador de concessoes zerado.
+   *
+   * Depois de conceder, quem estava com consumo acima do total efetivo e
+   * reposicionado: o tempo novo entra abatendo a divida, nao como saldo livre.
+   *
+   * @returns {boolean} `true` se algum cronometro mudou.
+   */
+  function applyAccruals(session) {
+    let changed = false;
+
+    for (const timer of session.timers) {
+      const rule = timer.accrual;
+      if (!rule) continue;
+
+      const source = session.timers.find(
+        (item) => item.id === rule.sourceTimerId,
+      );
+      if (!source) continue;
+
+      const sourceElapsed = getElapsed(source);
+      const bonusMs = computeBonusMs(timer, sourceElapsed, maxTimerMs);
+      const grantedCount = Math.max(
+        0,
+        getAccrualEarned(rule, sourceElapsed) - rule.baseCount,
+      );
+
+      if (bonusMs === timer.bonusMs && grantedCount === rule.grantedCount) {
+        continue;
+      }
+
+      timer.bonusMs = bonusMs;
+      rule.grantedCount = grantedCount;
+
+      // O consumo que nao cabia no total antigo passa a caber agora.
+      reanchorStartElapsed(timer);
+
+      // Um intervalo que tinha zerado volta a ficar disponivel, pausado, para
+      // o admin decidir quando usar o tempo recem-ganho.
+      if (timer.status === "finished" && getRemaining(timer) > 0) {
+        timer.status = "paused";
+      }
+
+      changed = true;
     }
 
-    const session = sessions.get(socket.currentSession);
-    if (!session || isSessionExpired(session)) {
-      deleteSession(socket.currentSession);
-      return null;
+    return changed;
+  }
+
+  function finishDueTimers(session) {
+    for (const timer of session.timers) {
+      if (timer.status === "running" && isTimerFinished(timer)) {
+        // Total EFETIVO, com o ganho incluido: fixar no total configurado
+        // deixava um cronometro com bonus "finalizado" e ainda com tempo
+        // sobrando, porque o restante voltava a ser positivo no ato.
+        timer.elapsed = getTotalTime(timer);
+        timer.startTime = null;
+        timer.status = "finished";
+      }
+    }
+  }
+
+  /** Liga o tick quando ha cronometro rodando e desliga quando nao ha mais. */
+  function syncSessionInterval(session) {
+    const hasRunning = session.timers.some(
+      (timer) => timer.status === "running",
+    );
+
+    if (!hasRunning) {
+      clearSessionInterval(session);
+      return;
     }
 
-    touchSession(session);
-    return session;
+    if (session.interval) return;
+
+    const sessionId = session.id;
+    session.interval = setInterval(
+      () => broadcastSession(sessionId),
+      TICK_INTERVAL_MS,
+    );
+    // O tick sozinho nao deve segurar o processo aberto: em producao quem
+    // mantem o app vivo e o socket do servidor. Sem isso um tick esquecido
+    // impede o encerramento (foi o que travou a suite de testes).
+    session.interval.unref?.();
+  }
+
+  function clearSessionInterval(session) {
+    if (!session.interval) return;
+    clearInterval(session.interval);
+    session.interval = null;
+  }
+
+  // ------------------------------------------------------------ cronometros
+
+  function getTimer(session, timerId) {
+    if (!isValidTimerId(timerId)) return null;
+    return session.timers.find((timer) => timer.id === timerId) || null;
+  }
+
+  /**
+   * @returns {object|null} o cronometro criado, ou `null` se o limite da
+   * sessao foi atingido.
+   */
+  function addTimer(session, { direction, name, totalTime } = {}) {
+    if (session.timers.length >= maxTimersPerSession) return null;
+
+    const safeTotalTime = sanitizeTimerMs(totalTime) ?? defaultTimerMs;
+    const timer = createTimer({
+      direction,
+      existingIds: session.timers.map((item) => item.id),
+      maxNameLength: maxTimerNameLength,
+      name,
+      totalTime: safeTotalTime,
+    });
+
+    session.timers.push(timer);
+
+    if (!getPrimaryTimer(session)) {
+      session.primaryTimerId = timer.id;
+    }
+
+    return timer;
+  }
+
+  function removeTimer(session, timerId) {
+    const index = session.timers.findIndex((timer) => timer.id === timerId);
+    if (index === -1) return false;
+
+    session.timers.splice(index, 1);
+
+    if (session.primaryTimerId === timerId) {
+      session.primaryTimerId = session.timers[0]?.id ?? null;
+    }
+
+    // Uma regra sem fonte nunca mais concederia nada; melhor desliga-la do
+    // que deixar o admin com uma configuracao morta na tela.
+    for (const restante of session.timers) {
+      if (restante.accrual?.sourceTimerId === timerId) {
+        restante.accrual = null;
+      }
+    }
+
+    syncSessionInterval(session);
+    return true;
+  }
+
+  /**
+   * Nome e direcao mudam a qualquer momento porque so afetam a apresentacao.
+   * O tempo total so muda com o cronometro fora do "running" e reposiciona a
+   * contagem, evitando um estado em que o decorrido ja passou do novo total.
+   *
+   * A ordem importa: a duracao entra antes do consumo, para que o consumo seja
+   * medido contra o total que vale no fim da operacao.
+   */
+  function updateTimer(
+    session,
+    timerId,
+    { accrual, direction, name, offsetMs, totalTime } = {},
+  ) {
+    const timer = getTimer(session, timerId);
+    if (!timer) return false;
+
+    let changed = false;
+
+    if (accrual !== undefined) {
+      timer.accrual = sanitizeAccrual(session, timerId, accrual);
+      changed = true;
+    }
+
+    if (typeof name === "string") {
+      timer.name = sanitizeTimerName(name, maxTimerNameLength);
+      changed = true;
+    }
+
+    if (direction !== undefined) {
+      timer.direction = sanitizeDirection(direction);
+      changed = true;
+    }
+
+    if (totalTime !== undefined && timer.status !== "running") {
+      const safeTotalTime = sanitizeTimerMs(totalTime);
+      if (safeTotalTime !== null) {
+        timer.totalTime = safeTotalTime;
+        // Trocar a duracao e uma edicao, nao um recomeco: o tempo ja ganho
+        // pela regra continua valendo, como diz a mesma promessa que vale
+        // para o consumo. So o Reset descarta o ganho. Antes isto chamava
+        // `resetTimer`, e aplicar duracao e consumo na mesma operacao apagava
+        // os minutos acumulados.
+        seekTimer(timer, timer.offsetMs);
+        changed = true;
+      }
+    }
+
+    if (offsetMs !== undefined && timer.status !== "running") {
+      const safeOffset = sanitizeOffsetMs(offsetMs);
+      if (safeOffset !== null) {
+        seekTimer(timer, safeOffset);
+        changed = true;
+      }
+    }
+
+    return changed;
+  }
+
+  /**
+   * Consumo valido: de zero ate o teto absoluto de um cronometro.
+   *
+   * Deliberadamente NAO limitado ao total do cronometro. Um intervalo que ganha
+   * 5 min por hora pode ter 30 minutos gastos quando so 25 foram concedidos, e
+   * recusar esse valor era justamente o que impedia de descontar o que ja tinha
+   * sido consumido - a recusa ainda por cima era silenciosa. O teto pelo total
+   * e aplicado na leitura (`getStartElapsed`), preservando a divida ate a regra
+   * conceder tempo suficiente para abate-la.
+   */
+  function sanitizeOffsetMs(value) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return null;
+
+    const safeValue = Math.trunc(parsed);
+    if (safeValue < 0) return null;
+
+    return Math.min(safeValue, maxTimerMs);
+  }
+
+  function setPrimaryTimer(session, timerId) {
+    if (!getTimer(session, timerId) || session.primaryTimerId === timerId) {
+      return false;
+    }
+
+    session.primaryTimerId = timerId;
+    return true;
+  }
+
+  /** Move o cronometro uma posicao para cima (offset < 0) ou para baixo. */
+  function moveTimer(session, timerId, offset) {
+    const index = session.timers.findIndex((timer) => timer.id === timerId);
+    if (index === -1) return false;
+
+    const target = index + (offset < 0 ? -1 : 1);
+    if (target < 0 || target >= session.timers.length) return false;
+
+    const [timer] = session.timers.splice(index, 1);
+    session.timers.splice(target, 0, timer);
+    return true;
+  }
+
+  function startSessionTimer(session, timerId) {
+    const timer = getTimer(session, timerId);
+    if (!timer || !startTimer(timer)) return false;
+
+    syncSessionInterval(session);
+    return true;
+  }
+
+  function pauseSessionTimer(session, timerId) {
+    const timer = getTimer(session, timerId);
+    if (!timer || !pauseTimer(timer)) return false;
+
+    syncSessionInterval(session);
+    return true;
+  }
+
+  function resetSessionTimer(session, timerId) {
+    const timer = getTimer(session, timerId);
+    if (!timer) return false;
+
+    resetSessionTimerState(session, timer);
+
+    // Zerar a fonte tambem zera o que ela concedeu: sem isso o bonus da
+    // rodada anterior somaria com o da proxima. Como o bonus e derivado, o
+    // que zera de verdade e mover o `baseCount` para a contagem de agora - ja
+    // com a fonte reposicionada.
+    for (const dependente of session.timers) {
+      if (dependente.accrual?.sourceTimerId === timerId) {
+        resetAccrual(dependente, getElapsed(timer));
+      }
+    }
+
+    syncSessionInterval(session);
+    return true;
+  }
+
+  /** Reset de um cronometro resolvendo sozinho a fonte da sua regra de ganho. */
+  function resetSessionTimerState(session, timer) {
+    const source = timer.accrual
+      ? getTimer(session, timer.accrual.sourceTimerId)
+      : null;
+
+    resetTimer(timer, source ? getElapsed(source) : 0);
+  }
+
+  /**
+   * Aplica start/pause/reset em todos os cronometros da sessao de uma vez.
+   * @returns {boolean} `true` se ao menos um cronometro mudou de estado.
+   */
+  function bulkTimerAction(session, action) {
+    const apply = {
+      start: startTimer,
+      pause: pauseTimer,
+      reset: (timer) => {
+        resetSessionTimerState(session, timer);
+        return true;
+      },
+    }[action];
+
+    if (!apply) return false;
+
+    let changed = false;
+    for (const timer of session.timers) {
+      if (apply(timer)) {
+        changed = true;
+      }
+    }
+
+    syncSessionInterval(session);
+    return changed;
+  }
+
+  // ------------------------------------------------------------- validacoes
+
+  /**
+   * Valida uma regra de ganho. Recusa fonte inexistente e auto-referencia
+   * (um cronometro alimentando a si mesmo cresceria sem limite).
+   * @returns {object|null} regra normalizada, ou `null` para desligar.
+   */
+  /** Credenciais vindas do snapshot: so aceita o formato ja derivado. */
+  function sanitizeStoredAuth(value) {
+    if (!value || typeof value !== "object") return null;
+
+    const { username, salt, hash } = value;
+    if (typeof username !== "string" || !username) return null;
+    if (typeof salt !== "string" || !/^[a-f0-9]+$/i.test(salt)) return null;
+    if (typeof hash !== "string" || !/^[a-f0-9]+$/i.test(hash)) return null;
+
+    return { username, salt, hash };
+  }
+
+  function sanitizeAccrual(session, timerId, value) {
+    if (!value || typeof value !== "object") return null;
+
+    const sourceTimerId = value.sourceTimerId;
+    if (sourceTimerId === timerId) return null;
+    if (!getTimer(session, sourceTimerId)) return null;
+
+    const everyMs = sanitizeSpan(value.everyMs, minAccrualEveryMs);
+    const addMs = sanitizeSpan(value.addMs, minAccrualAddMs);
+    if (everyMs === null || addMs === null) return null;
+
+    // `baseCount` sai do valor anterior quando a regra e a mesma, para que
+    // reabrir os ajustes ou mexer num campo e voltar atras nao mova o zero da
+    // contagem. Regra nova comeca em zero e credita o que a fonte ja acumulou.
+    const atual = getTimer(session, timerId)?.accrual;
+    const mesmaRegra =
+      atual &&
+      atual.sourceTimerId === sourceTimerId &&
+      atual.everyMs === everyMs;
+
+    return {
+      sourceTimerId,
+      everyMs,
+      addMs,
+      baseCount: mesmaRegra ? atual.baseCount : 0,
+      grantedCount: 0,
+    };
+  }
+
+  function sanitizeSpan(value, minimo) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return null;
+
+    const safeValue = Math.trunc(parsed);
+    if (safeValue < minimo || safeValue > maxTimerMs) return null;
+
+    return safeValue;
   }
 
   function sanitizeTimerMs(value) {
@@ -224,18 +840,11 @@ function createSessionStore({
     return typeof value === "string" && adminTokenPattern.test(value);
   }
 
-  function isValidRole(value) {
-    return value === "admin" || value === "viewer";
+  function isValidTimerId(value) {
+    return typeof value === "string" && timerIdPattern.test(value);
   }
 
-  function buildSessionState(session) {
-    const remaining = getRemaining(session);
-
-    return {
-      status: session.status,
-      remaining,
-      totalTime: session.totalTime,
-      pct: session.totalTime > 0 ? remaining / session.totalTime : 1,
-    };
+  function isValidRole(value) {
+    return value === "admin" || value === "viewer";
   }
 }

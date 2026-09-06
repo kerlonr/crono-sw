@@ -1,6 +1,11 @@
 (() => {
-  const { formatTime, isValidSessionId, sanitizeMs, sanitizePct } =
-    window.CronoUtils;
+  const {
+    formatTime,
+    getDisplayMs,
+    getTimerLabel,
+    isValidSessionId,
+    sanitizeSessionState,
+  } = window.CronoUtils;
   const overviewGrid = document.getElementById("overview-grid");
   const overviewEmpty = document.getElementById("overview-empty");
   const statOnline = document.getElementById("stat-online");
@@ -79,36 +84,61 @@
     pollTimer = 0;
   }
 
-  function renderOverview(sessions) {
-    overviewGrid.replaceChildren();
+  const cards = new Map();
+  let gridSignature = null;
 
+  /**
+   * Antes cada ciclo de 3s apagava a grade inteira e remontava tudo. Isso
+   * reiniciava a animacao da borda dos cards, cortava qualquer transicao de
+   * cor pela metade e piscava o texto. Agora o DOM so e recriado quando a
+   * lista de sessoes muda; nos demais ciclos os campos sao atualizados no
+   * lugar, e as transicoes do CSS acontecem de verdade.
+   */
+  function renderOverview(sessions) {
     statOnline.textContent = String(sessions.length);
     statRunning.textContent = String(
-      sessions.filter((session) => session?.status === "running").length
+      sessions.filter((session) => session?.status === "running").length,
     );
 
     if (!sessions.length) {
       overviewEmpty.classList.add("visible");
+      overviewGrid.replaceChildren();
+      cards.clear();
+      gridSignature = null;
       return;
     }
 
     overviewEmpty.classList.remove("visible");
 
-    sessions.forEach((session) => {
-      overviewGrid.appendChild(createTimerCard(session));
-    });
+    const signature = sessions.map((session) => session.id).join(",");
+    if (signature !== gridSignature) {
+      const presentes = new Set(sessions.map((session) => session.id));
+      for (const [id, card] of cards) {
+        if (presentes.has(id)) continue;
+        card.root.remove();
+        cards.delete(id);
+      }
+
+      for (const session of sessions) {
+        let card = cards.get(session.id);
+        if (!card) {
+          card = createTimerCard(session);
+          cards.set(session.id, card);
+        }
+        overviewGrid.appendChild(card.root);
+      }
+
+      gridSignature = signature;
+    }
+
+    for (const session of sessions) {
+      updateTimerCard(cards.get(session.id), session);
+    }
   }
 
   function createTimerCard(session) {
-    const safeRemaining = sanitizeMs(session.remaining);
-    const safePct = sanitizePct(session.pct);
-    const state = mapStatus(session.status, safeRemaining, safePct);
-
     const root = document.createElement("article");
     root.className = "timer-card";
-    if (state.cardClass) {
-      root.classList.add(state.cardClass);
-    }
 
     const top = document.createElement("div");
     top.className = "card-top";
@@ -127,16 +157,18 @@
 
     const status = document.createElement("div");
     status.className = "card-status";
-    status.dataset.state = state.className;
-    status.textContent = state.label;
+
+    const primaryLabel = document.createElement("div");
+    primaryLabel.className = "card-primary-label";
 
     const timer = document.createElement("div");
     timer.className = "card-timer";
-    timer.textContent = formatTime(safeRemaining);
+
+    const list = document.createElement("div");
+    list.className = "card-timer-list";
 
     const meta = document.createElement("div");
     meta.className = "card-meta";
-    meta.textContent = state.copy;
 
     const actions = document.createElement("div");
     actions.className = "card-actions";
@@ -151,23 +183,109 @@
     link.rel = "noopener noreferrer";
     link.textContent = "Viewer";
 
+    // Caminho de volta para quem perdeu o link do admin: a tela de admin
+    // pede usuario e senha quando o token nao esta no endereco.
+    const adminLink = document.createElement("a");
+    adminLink.className = "card-link";
+    adminLink.href = `/admin/${session.id}`;
+    adminLink.target = "_blank";
+    adminLink.rel = "noopener noreferrer";
+
     const closeButton = document.createElement("button");
     closeButton.className = "card-link card-end-button";
     closeButton.type = "button";
-    closeButton.disabled = closingSessions.has(session.id);
-    closeButton.textContent = closeButton.disabled ? "Encerrando" : "Finalizar";
     closeButton.addEventListener("click", () => closeSession(session.id));
 
     const note = document.createElement("div");
     note.className = "card-note";
-    note.textContent = `Atualizado ${formatRelative(session.lastAccessAt)}`;
 
-    actionButtons.append(link, closeButton);
+    actionButtons.append(link, adminLink, closeButton);
     actions.append(actionButtons, note);
     top.append(identity, status);
-    root.append(top, timer, meta, actions);
+    root.append(top, primaryLabel, timer, list, meta, actions);
 
-    return root;
+    return {
+      root,
+      status,
+      primaryLabel,
+      timer,
+      list,
+      listSignature: null,
+      meta,
+      adminLink,
+      closeButton,
+      note,
+    };
+  }
+
+  function updateTimerCard(card, session) {
+    if (!card) return;
+
+    const { timers, primaryTimerId } = sanitizeSessionState(session);
+    const primary = timers.find((timer) => timer.id === primaryTimerId) ?? null;
+    const state = mapStatus(session.status, primary);
+
+    card.root.className = `timer-card${state.cardClass ? ` ${state.cardClass}` : ""}`;
+    card.status.dataset.state = state.className;
+    card.status.textContent = state.label;
+
+    card.primaryLabel.textContent = primary
+      ? getTimerLabel(primary)
+      : "Sem cronômetros";
+    card.timer.textContent = primary
+      ? formatTime(getDisplayMs(primary))
+      : "--:--:--";
+    card.meta.textContent = state.copy;
+
+    const outros = timers.filter((timer) => timer !== primary);
+    renderTimerList(card, outros);
+
+    card.adminLink.textContent = session.hasAuth ? "Admin 🔒" : "Admin";
+    card.adminLink.title = session.hasAuth
+      ? "Entrar com usuário e senha"
+      : "Esta sessão não tem usuário e senha definidos";
+
+    const encerrando = closingSessions.has(session.id);
+    card.closeButton.disabled = encerrando;
+    card.closeButton.textContent = encerrando ? "Encerrando" : "Finalizar";
+
+    card.note.textContent = `Atualizado ${formatRelative(session.lastAccessAt)}`;
+  }
+
+  /** Linhas compactas dos cronometros que nao estao em destaque. */
+  function renderTimerList(card, timers) {
+    const signature = timers.map((timer) => timer.id).join(",");
+
+    if (signature !== card.listSignature) {
+      card.list.replaceChildren();
+
+      for (const timer of timers) {
+        const row = document.createElement("div");
+        row.className = "card-timer-row";
+        row.dataset.timerId = timer.id;
+
+        const label = document.createElement("span");
+        label.className = "card-timer-row-label";
+
+        const value = document.createElement("span");
+        value.className = "card-timer-row-value";
+
+        row.append(label, value);
+        card.list.appendChild(row);
+      }
+
+      card.listSignature = signature;
+    }
+
+    card.list.hidden = timers.length === 0;
+
+    timers.forEach((timer, index) => {
+      const row = card.list.children[index];
+      if (!row) return;
+      row.dataset.status = timer.status;
+      row.firstChild.textContent = getTimerLabel(timer);
+      row.lastChild.textContent = formatTime(getDisplayMs(timer));
+    });
   }
 
   async function closeSession(sessionId) {
@@ -206,32 +324,31 @@
     }
   }
 
-  function mapStatus(status, remaining, pct) {
-    if (remaining <= 0 || status === "finished") {
+  /**
+   * Resume a sessao a partir do status agregado e do cronometro em destaque,
+   * que e o que a pessoa ve grande no card.
+   */
+  function mapStatus(status, primary) {
+    const pct = primary ? primary.pct : 1;
+
+    if (!primary || status === "finished") {
       return {
         label: "Finalizado",
         className: "finished",
         cardClass: "is-finished",
-        copy: "O cronômetro chegou ao fim.",
+        copy: primary
+          ? "Todos os cronômetros chegaram ao fim."
+          : "Sessão sem cronômetros configurados.",
       };
     }
 
     if (status === "running") {
-      if (pct <= 0.1) {
-        return {
-          label: "Urgente",
-          className: "running",
-          cardClass: "is-danger",
-          copy: "Últimos segundos em contagem ativa.",
-        };
-      }
-
       if (pct <= 0.2) {
         return {
-          label: "Atenção",
+          label: pct <= 0.1 ? "Urgente" : "Atenção",
           className: "running",
           cardClass: "is-danger",
-          copy: "Fase final do cronômetro.",
+          copy: "Fase final do cronômetro em destaque.",
         };
       }
 
@@ -248,7 +365,7 @@
         label: "Rodando",
         className: "running",
         cardClass: "is-running",
-        copy: "Cronômetro ativo em tempo real.",
+        copy: "Sessão com cronômetro ativo em tempo real.",
       };
     }
 

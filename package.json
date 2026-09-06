@@ -9,12 +9,12 @@
     "url": "git+https://github.com/kerlonr/crono-sync.git"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20.18.0"
   },
   "scripts": {
-    "check": "node --check server.js && node --check src/config.js && node --check src/deploy-client.js && node --check src/logger.js && node --check src/security.js && node --check src/sessions.js && node --check public/assets/js/admin.js && node --check public/assets/js/crono-utils.js && node --check public/assets/js/finish-sound.js && node --check public/assets/js/index.js && node --check public/assets/js/overview.js && node --check public/assets/js/viewer.js",
-    "start": "node server.js",
-    "start:deployer": "node scripts/deployer.js",
+    "check": "node --check server.js && node --check src/config.js && node --check src/deploy-client.js && node --check src/logger.js && node --check src/auth.js && node --check src/persistence.js && node --check src/security.js && node --check src/sessions.js && node --check src/timers.js && node --check public/assets/js/admin.js && node --check public/assets/js/crono-utils.js && node --check public/assets/js/finish-sound.js && node --check public/assets/js/index.js && node --check public/assets/js/overview.js && node --check public/assets/js/viewer.js",
+    "start": "node --env-file-if-exists=.env server.js",
+    "start:deployer": "node --env-file-if-exists=.env scripts/deployer.js",
     "test": "node --test"
   },
   "dependencies": {

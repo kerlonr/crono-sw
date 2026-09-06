@@ -1,382 +1,1184 @@
+/**
+ * Painel de administracao.
+ *
+ * A tela mantem o desenho original: o cronometro em destaque ocupa o bloco
+ * grande de sempre e os demais aparecem em blocos compactos logo abaixo. Toda
+ * a configuracao vive no modal, para a tela principal seguir limpa.
+ *
+ * O DOM dos secundarios so e reconstruido quando a lista muda; nos ticks de
+ * 250ms apenas textos, classes e larguras sao atualizados. O formulario do
+ * modal, por sua vez, so e preenchido ao trocar de selecao ou ao abrir - se
+ * fosse a cada tick, apagaria o que estivesse sendo digitado.
+ */
 (() => {
   const {
+    MAX_TIMERS_PER_SESSION,
+    advanceTimer,
+    MAX_TIMER_MS,
+    formatCompactDuration,
     formatTime,
+    getAccrualLabel,
+    getBonusLabel,
+    getDisplayMs,
+    getLedgerLabel,
     getPhase,
+    getTimerLabel,
+    getTimerMetaLabel,
     isValidAdminToken,
     isValidSessionId,
-    sanitizeMs,
-    sanitizePct,
+    sanitizeSessionState,
+    sanitizeTimerName,
+    splitDuration,
   } = window.CronoUtils;
-  const MAX_PRESET_NAME_LENGTH = 24;
-  const MAX_PRESETS = 20;
-  const MAX_TIMER_SECONDS = 12 * 60 * 60;
-  const VIEWER_LINK_TEXT = "Abrir viewer";
+
+  const MODELS_KEY = "crono_sw_models";
+  const MAX_MODELS = 20;
+  const MAX_TIMER_HOURS = Math.floor(MAX_TIMER_MS / 3600000);
+  const MIN_ACCRUAL_EVERY_MS = 60 * 1000;
+  const RESET_CONFIRM_MS = 60 * 1000;
+  const FEEDBACK_MS = 2600;
+
   const socket = io();
   const sessionId = window.location.pathname.split("/").pop();
-  const adminToken = window.location.hash.slice(1);
-  const presetsKey = `crono_sw_presets_${sessionId}`;
-  const finishSoundWatcher = window.CronoFinishSound?.createWatcher();
+  let adminToken = window.location.hash.slice(1);
+  const legacyPresetsKey = `crono_sw_presets_${sessionId}`;
 
-  const elements = {
-    adminPanel: document.getElementById("admin-panel"),
-    desktopPresetsChips: document.getElementById("desktop-presets-chips"),
-    desktopManage: document.getElementById("d-presets-manage"),
-    desktopPresetName: document.getElementById("d-preset-name"),
-    desktopPresetFeedback: document.getElementById("d-preset-feedback"),
-    desktopTimer: document.getElementById("d-timer"),
-    desktopProgress: document.getElementById("d-progress"),
-    desktopStatusDot: document.getElementById("d-status-dot"),
-    desktopStatusText: document.getElementById("d-status-text"),
-    desktopStart: document.getElementById("d-btn-start"),
-    desktopPause: document.getElementById("d-btn-pause"),
-    desktopReset: document.getElementById("d-btn-reset"),
-    desktopFs: document.getElementById("btn-fs-d"),
-    desktopOpenModal: document.getElementById("btn-open-modal"),
-    desktopApply: document.getElementById("btn-d-apply"),
-    desktopSavePreset: document.getElementById("btn-d-save-preset"),
-    desktopAddPreset: document.getElementById("btn-d-add-preset"),
-    modalOverlay: document.getElementById("modal-overlay"),
-    closeModal: document.getElementById("btn-close-modal"),
-    mobilePresetsScroll: document.getElementById("m-presets-scroll"),
-    mobileManage: document.getElementById("m-presets-manage"),
-    mobilePresetName: document.getElementById("m-preset-name"),
-    mobilePresetFeedback: document.getElementById("m-preset-feedback"),
-    mobileTimer: document.getElementById("m-timer"),
-    mobileProgress: document.getElementById("m-progress"),
-    mobileStatusDot: document.getElementById("m-status-dot"),
-    mobileStatusText: document.getElementById("m-status-text"),
-    mobileStart: document.getElementById("m-btn-start"),
-    mobilePause: document.getElementById("m-btn-pause"),
-    mobileReset: document.getElementById("m-btn-reset"),
-    mobileFs: document.getElementById("btn-fs-m"),
-    mobileOpenDrawer: document.getElementById("btn-open-drawer"),
-    mobileApply: document.getElementById("btn-m-apply"),
-    mobileSavePreset: document.getElementById("btn-m-save-preset"),
-    mobileAddPreset: document.getElementById("btn-m-add-preset"),
-    drawerOverlay: document.getElementById("drawer-overlay"),
-    drawer: document.getElementById("drawer"),
-    closeDrawer: document.getElementById("btn-close-drawer"),
+  const el = (id) => document.getElementById(id);
+
+  const ui = {
+    panel: el("admin-panel"),
+    // destaque
+    primaryBlock: el("primary-block"),
+    primaryName: el("primary-name"),
+    primaryTime: el("primary-time"),
+    primaryMeta: el("primary-meta"),
+    primaryProgress: el("primary-progress"),
+    primaryDot: el("primary-dot"),
+    primaryStatus: el("primary-status"),
+    primaryStart: el("primary-start"),
+    primaryPause: el("primary-pause"),
+    primaryReset: el("primary-reset"),
+    // secundarios
+    strip: el("timer-strip"),
+    miniTemplate: el("timer-mini-template"),
+    boardEmpty: el("board-empty"),
+    boardFeedback: el("board-feedback"),
+    // barra superior
+    modelsChips: el("models-chips"),
+    addTimer: el("btn-add-timer"),
+    fullscreen: el("btn-fs"),
+    openModal: el("btn-open-modal"),
+    // modal
+    overlay: el("modal-overlay"),
+    closeModal: el("btn-close-modal"),
+    config: el("timer-config"),
+    configTitle: el("timer-config-title"),
+    closeConfig: el("btn-close-config"),
+    cfgName: el("cfg-name"),
+    cfgDirectionHint: el("cfg-direction-hint"),
+    cfgH: el("cfg-h"),
+    cfgM: el("cfg-m"),
+    cfgS: el("cfg-s"),
+    cfgTimeLabel: el("cfg-time-label"),
+    cfgTimeHint: el("cfg-time-hint"),
+    applyStart: el("btn-apply-start"),
+    offsetStart: el("btn-offset-start"),
+    cfgOffsetLabel: el("cfg-offset-label"),
+    clockRow: el("clock-row"),
+    clockLabel: el("clock-label"),
+    clockHint: el("clock-hint"),
+    cfgClock: el("cfg-clock"),
+    fromClock: el("btn-from-clock"),
+    clockNow: el("btn-clock-now"),
+    clockSync: el("btn-clock-sync"),
+    cfgOffH: el("cfg-off-h"),
+    cfgOffM: el("cfg-off-m"),
+    cfgOffS: el("cfg-off-s"),
+    cfgOffsetHint: el("cfg-offset-hint"),
+    cfgLedger: el("cfg-ledger"),
+    spendRow: el("cfg-spend-row"),
+    applyOffset: el("btn-apply-offset"),
+    clearOffset: el("btn-clear-offset"),
+    applyTime: el("btn-apply-time"),
+    saveModel: el("btn-save-model"),
+    accrualEnabled: el("accrual-enabled"),
+    accrualSentence: el("accrual-sentence"),
+    accrualEveryH: el("accrual-every-h"),
+    accrualEveryM: el("accrual-every-m"),
+    accrualSource: el("accrual-source"),
+    accrualAddM: el("accrual-add-m"),
+    accrualStatus: el("accrual-status"),
+    setPrimary: el("btn-set-primary"),
+    moveUp: el("btn-move-up"),
+    moveDown: el("btn-move-down"),
+    removeTimer: el("btn-remove-timer"),
+    modelsManage: el("models-manage"),
+    linkStatus: el("link-status"),
+    loginShell: el("login-shell"),
+    loginForm: el("login-form"),
+    loginUser: el("login-user"),
+    loginPass: el("login-pass"),
+    loginFeedback: el("login-feedback"),
+    authUser: el("auth-user"),
+    authPass: el("auth-pass"),
+    saveAuth: el("btn-save-auth"),
+    clearAuth: el("btn-clear-auth"),
+    authFeedback: el("auth-feedback"),
     viewerLinks: document.querySelectorAll(".viewer-direct-link"),
-    desktopInputH: document.getElementById("d-input-h"),
-    desktopInputM: document.getElementById("d-input-m"),
-    desktopInputS: document.getElementById("d-input-s"),
-    mobileInputH: document.getElementById("m-input-h"),
-    mobileInputM: document.getElementById("m-input-m"),
-    mobileInputS: document.getElementById("m-input-s"),
   };
 
-  let touchStartY = 0;
-  const presetFeedbackTimers = { desktop: 0, mobile: 0 };
+  const minis = new Map();
+  const finishWatchers = new Map();
 
-  if (
-    !elements.adminPanel ||
-    !elements.drawer ||
-    !isValidSessionId(sessionId)
-  ) {
-    showError("Sessão não encontrada.");
-    return;
+  let state = { timers: [], primaryTimerId: null };
+  let stripSignature = null;
+  // Um unico painel de ajustes, movido para dentro do bloco aberto. Manter um
+  // formulario por cronometro duplicaria os campos e os listeners.
+  let openTimerId = null;
+  let selectedTimerId = null;
+  let feedbackTimer = 0;
+  let entrou = false;
+  let tentativasDeEntrada = 0;
+  let estadoBase = null;
+  let recebidoEm = 0;
+  const ATRASO_SUSPEITO_MS = 4000;
+
+  if (!ui.panel || !ui.strip || !ui.miniTemplate || !isValidSessionId(sessionId)) {
+    return showError("Sessão não encontrada.");
   }
 
+  bindLogin();
+
   if (!isValidAdminToken(adminToken)) {
-    showError("Acesso de admin inválido ou expirado.");
-    return;
+    return showLogin();
   }
 
   bindEvents();
-  connectToSession();
+  connect();
 
-  function bindEvents() {
-    elements.desktopFs?.addEventListener("click", toggleFullscreen);
-    elements.mobileFs?.addEventListener("click", toggleFullscreen);
-    elements.desktopOpenModal?.addEventListener("click", openModal);
-    elements.closeModal?.addEventListener("click", closeModal);
-    elements.mobileOpenDrawer?.addEventListener("click", openDrawer);
-    elements.closeDrawer?.addEventListener("click", closeDrawer);
-    elements.drawerOverlay?.addEventListener("click", closeDrawer);
-    elements.desktopApply?.addEventListener("click", applyDesktopTime);
-    elements.mobileApply?.addEventListener("click", applyMobileTimeAndClose);
-    elements.desktopSavePreset?.addEventListener(
-      "click",
-      saveDesktopPresetFromField,
-    );
-    elements.mobileSavePreset?.addEventListener(
-      "click",
-      saveMobilePresetFromField,
-    );
-    elements.desktopAddPreset?.addEventListener("click", addDesktopPreset);
-    elements.mobileAddPreset?.addEventListener("click", addMobilePreset);
-    elements.desktopStart?.addEventListener("click", timerStart);
-    elements.mobileStart?.addEventListener("click", timerStart);
-    elements.desktopPause?.addEventListener("click", timerPause);
-    elements.mobilePause?.addEventListener("click", timerPause);
-    elements.desktopReset?.addEventListener("click", timerReset);
-    elements.mobileReset?.addEventListener("click", timerReset);
-    elements.desktopPresetName?.addEventListener(
-      "keydown",
-      onPresetNameKeydown(addDesktopPreset),
-    );
-    elements.mobilePresetName?.addEventListener(
-      "keydown",
-      onPresetNameKeydown(addMobilePreset),
-    );
-    elements.desktopPresetName?.addEventListener("input", () =>
-      clearPresetFeedback("desktop"),
-    );
-    elements.mobilePresetName?.addEventListener("input", () =>
-      clearPresetFeedback("mobile"),
-    );
-    elements.modalOverlay?.addEventListener("click", (event) => {
-      if (event.target === elements.modalOverlay) {
-        closeModal();
+  // ----------------------------------------------------------------- login
+
+  /**
+   * O token continua sendo a credencial de fato; usuario e senha servem para
+   * recupera-lo quando o link se perde.
+   */
+  function bindLogin() {
+    ui.loginForm?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const username = ui.loginUser.value.trim();
+      const password = ui.loginPass.value;
+      if (!username || !password) {
+        return setLoginFeedback("Informe usuário e senha.");
       }
-    });
 
-    elements.drawer?.addEventListener("touchstart", (event) => {
-      touchStartY = event.touches[0]?.clientY ?? 0;
-    });
-    elements.drawer?.addEventListener("touchend", (event) => {
-      const endY = event.changedTouches[0]?.clientY ?? 0;
-      if (endY - touchStartY > 80) {
-        closeDrawer();
+      ui.loginForm.querySelector("button").disabled = true;
+      setLoginFeedback("Entrando...");
+
+      try {
+        const response = await fetch(`/api/session/${sessionId}/login`, {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ username, password }),
+        });
+
+        if (response.status === 429) {
+          return setLoginFeedback(
+            "Muitas tentativas. Espere alguns minutos e tente de novo.",
+          );
+        }
+        if (!response.ok) {
+          return setLoginFeedback("Usuário ou senha inválidos.");
+        }
+
+        const data = await response.json();
+        if (!isValidAdminToken(data?.adminToken)) {
+          return setLoginFeedback("Resposta inválida do servidor.");
+        }
+
+        // Guarda o token no hash para recarregar sem pedir login de novo.
+        adminToken = data.adminToken;
+        window.location.hash = adminToken;
+        ui.loginShell.hidden = true;
+        ui.loginPass.value = "";
+        setLoginFeedback("");
+
+        bindEvents();
+        connect();
+      } catch {
+        setLoginFeedback("Não foi possível falar com o servidor.");
+      } finally {
+        const botao = ui.loginForm.querySelector("button");
+        if (botao) botao.disabled = false;
       }
-    });
-
-    document.addEventListener("fullscreenchange", syncFullscreenButtons);
-    socket.on("connect_error", () => {
-      showError("Não foi possível conectar ao servidor.");
-    });
-    socket.on("timer:tick", ({ status, remaining, pct }) => {
-      const safeRemaining = sanitizeMs(remaining);
-      finishSoundWatcher?.sync(status, safeRemaining);
-      updateTimers(remaining, pct, status);
-      updateControls(status);
-    });
-    socket.on("session:closed", () => {
-      showError("Sessão encerrada.");
     });
   }
 
-  function connectToSession() {
+  function showLogin() {
+    if (!ui.loginShell) {
+      return showError("Acesso de admin inválido ou expirado.");
+    }
+
+    document.body.classList.add("login-mode");
+    ui.loginShell.hidden = false;
+    ui.loginUser?.focus();
+  }
+
+  function setLoginFeedback(message) {
+    if (ui.loginFeedback) ui.loginFeedback.textContent = message;
+  }
+
+  // --------------------------------------------------------------- conexao
+
+  /**
+   * Ao reconectar, o Socket.IO cria um socket NOVO no servidor - sem sala e
+   * sem papel de admin. Sem reentrar na sessao a tela congela e os controles
+   * param de responder em silencio, que era o sintoma de "a sessao caiu"
+   * depois de um tempo com a aba fora de foco. Entrar no evento `connect`
+   * cobre a primeira conexao e todas as reconexoes.
+   */
+  function connect() {
+    socket.on("connect", entrarNaSessao);
+    socket.on("disconnect", () => setConexao("Reconectando..."));
+
+    if (socket.connected) entrarNaSessao();
+  }
+
+  function entrarNaSessao() {
     socket.emit("session:join", sessionId, "admin", adminToken, (response) => {
-      if (!response?.success) {
-        showError(
-          response?.reason === "unauthorized"
-            ? "Acesso de admin inválido ou expirado."
-            : "Sessão não encontrada.",
-        );
+      if (response?.success) {
+        tentativasDeEntrada = 0;
+        setConexao("");
+
+        if (entrou) return;
+        entrou = true;
+
+        ui.panel.style.display = "block";
+        for (const link of ui.viewerLinks) link.href = `/view/${sessionId}`;
+        renderModels();
+        syncFullscreen();
         return;
       }
 
-      elements.adminPanel.style.display = "block";
-      const viewerUrl = `/view/${sessionId}`;
-      for (const link of elements.viewerLinks) {
-        link.href = viewerUrl;
-        link.textContent = VIEWER_LINK_TEXT;
+      if (response?.reason === "unauthorized") {
+        return showError("Acesso de admin inválido ou expirado.");
       }
 
-      renderAll();
-      syncFullscreenButtons();
+      // "nao encontrada" logo apos um reinicio do servidor costuma ser corrida
+      // com a restauracao do snapshot. Vale tentar de novo antes de derrubar a
+      // tela do usuario, que so teria a opcao de recarregar na mao.
+      if (tentativasDeEntrada < 6) {
+        tentativasDeEntrada += 1;
+        setConexao(`Reconectando... (${tentativasDeEntrada}/6)`);
+        window.setTimeout(entrarNaSessao, 2000);
+        return;
+      }
+
+      showError("Sessão não encontrada.");
     });
   }
 
-  function onPresetNameKeydown(handler) {
-    return (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        handler();
+  function setConexao(mensagem) {
+    if (!ui.linkStatus) return;
+    ui.linkStatus.textContent = mensagem;
+    ui.linkStatus.hidden = !mensagem;
+  }
+
+  function bindEvents() {
+    socket.on("session:state", applyState);
+    // Falha de conexao nao e fatal: o Socket.IO segue tentando sozinho, e
+    // derrubar a tela aqui apagaria um painel que volta a funcionar em
+    // segundos.
+    socket.on("connect_error", () => setConexao("Sem conexão. Tentando..."));
+    socket.on("session:closed", () => showError("Sessão encerrada."));
+
+    for (const root of [ui.primaryBlock, ui.strip]) {
+      root.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-action]");
+        if (!button || button.disabled || !root.contains(button)) return;
+        runAction(
+          button.dataset.action,
+          button.closest("[data-timer-id]")?.dataset.timerId,
+        );
+      });
+    }
+
+    ui.closeConfig?.addEventListener("click", closeConfig);
+    ui.addTimer?.addEventListener("click", () => addTimer());
+    ui.fullscreen?.addEventListener("click", toggleFullscreen);
+    document.addEventListener("fullscreenchange", syncFullscreen);
+
+    ui.openModal?.addEventListener("click", openModal);
+    ui.closeModal?.addEventListener("click", closeModal);
+    ui.overlay?.addEventListener("click", (event) => {
+      if (event.target === ui.overlay) closeModal();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      closeModal();
+      closeConfig();
+    });
+
+    // Titulo e modo valem na hora: sao so apresentacao, nao mexem na contagem.
+    ui.cfgName?.addEventListener("change", () => {
+      const name = sanitizeTimerName(ui.cfgName.value);
+      ui.cfgName.value = name;
+      emitUpdate({ name });
+    });
+    ui.config?.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-direction]");
+      if (!button) return;
+      emitUpdate({ direction: button.dataset.direction });
+    });
+
+    ui.applyTime?.addEventListener("click", () => applyTime(false));
+    ui.applyStart?.addEventListener("click", () => applyTime(true));
+    ui.applyOffset?.addEventListener("click", () => applyOffset(readOffsetMs(), false));
+    ui.offsetStart?.addEventListener("click", () => applyOffset(readOffsetMs(), true));
+    ui.clearOffset?.addEventListener("click", () => applyOffset(0, false));
+    ui.fromClock?.addEventListener("click", () => sincronizarPeloRelogio(false));
+    ui.clockSync?.addEventListener("click", () => sincronizarPeloRelogio(true));
+    ui.clockNow?.addEventListener("click", preencherAgora);
+
+    // Ajuste rapido da duracao: mexer nos campos de hora um a um para somar 5
+    // minutos e o tipo de atrito que faz a tela parecer ruim de usar. Aqui o
+    // passo so edita o campo - quem aplica e o botao do cartao.
+    ui.config?.addEventListener("click", (event) => {
+      const passo = event.target.closest("[data-step]");
+      if (!passo) return;
+
+      fillTimeInputs(Math.max(0, readTimeMs() + Number(passo.dataset.step)));
+    });
+
+    // Registro rapido: soma ao que o servidor ja tem e aplica num clique.
+    ui.config?.addEventListener("click", (event) => {
+      const botao = event.target.closest("[data-spend-step]");
+      if (!botao) return;
+      registrarConsumo(Number(botao.dataset.spendStep));
+    });
+    ui.saveModel?.addEventListener("click", saveModelFromSelected);
+    ui.setPrimary?.addEventListener("click", () => {
+      if (selectedTimerId) socket.emit("timer:setPrimary", selectedTimerId);
+    });
+    ui.moveUp?.addEventListener("click", () => moveSelected(-1));
+    ui.moveDown?.addEventListener("click", () => moveSelected(1));
+    ui.removeTimer?.addEventListener("click", removeSelected);
+
+    ui.saveAuth?.addEventListener("click", () => {
+      const username = ui.authUser.value.trim();
+      const password = ui.authPass.value;
+
+      if (!username || !password) {
+        return setAuthFeedback("Informe usuário e senha.");
       }
+
+      socket.emit("session:setAuth", { username, password }, (resposta) => {
+        ui.authPass.value = "";
+        setAuthFeedback(
+          resposta?.success
+            ? `Acesso salvo. Entre com "${username}" se perder o link.`
+            : "Não foi possível salvar o acesso.",
+        );
+      });
+    });
+
+    ui.clearAuth?.addEventListener("click", () => {
+      if (!window.confirm("Remover usuário e senha desta sessão?")) return;
+
+      socket.emit("session:setAuth", {}, (resposta) => {
+        ui.authUser.value = "";
+        ui.authPass.value = "";
+        setAuthFeedback(
+          resposta?.success
+            ? "Acesso removido. Só o link controla esta sessão agora."
+            : "Não foi possível remover o acesso.",
+        );
+      });
+    });
+
+    ui.accrualEnabled?.addEventListener("change", applyAccrual);
+    for (const field of [
+      ui.accrualEveryH,
+      ui.accrualEveryM,
+      ui.accrualSource,
+      ui.accrualAddM,
+    ]) {
+      field?.addEventListener("change", applyAccrual);
+    }
+  }
+
+  function applyState(raw) {
+    estadoBase = sanitizeSessionState(raw);
+    recebidoEm = performance.now();
+    desenhar();
+  }
+
+  /**
+   * Entre as mensagens do servidor a tela segue contando sozinha. Uma conexao
+   * meio-morta demora ate ~45s para o Socket.IO perceber, e nesse tempo o
+   * painel ficava parado num valor velho.
+   */
+  function desenhar() {
+    if (!estadoBase) return;
+
+    const atraso = performance.now() - recebidoEm;
+    state = {
+      primaryTimerId: estadoBase.primaryTimerId,
+      timers: estadoBase.timers.map((timer) => advanceTimer(timer, atraso)),
+    };
+
+    // Silencio so e suspeito quando o servidor deveria estar falando: o tick
+    // existe enquanto ha cronometro rodando e e liberado quando o ultimo para.
+    // Sem esta condicao, um painel parado - o estado normal de quem acabou de
+    // abrir a tela - acusava o servidor de nao responder depois de 4 segundos,
+    // com a conexao perfeitamente viva.
+    const esperandoTick = estadoBase.timers.some(
+      (timer) => timer.status === "running",
+    );
+
+    if (entrou && socket.connected) {
+      // O aviso so aparece com tick pendente e so sai quando um estado fresco
+      // chega - limpar em qualquer outra condicao apagaria um "Reconectando..."
+      // ainda valido.
+      if (esperandoTick && atraso > ATRASO_SUSPEITO_MS) {
+        setConexao("Sem resposta do servidor...");
+      } else if (atraso <= ATRASO_SUSPEITO_MS) {
+        setConexao("");
+      }
+    }
+
+    renderizar();
+  }
+
+  function renderizar() {
+
+    if (!findTimer(selectedTimerId)) {
+      selectedTimerId = state.primaryTimerId;
+    }
+
+    const primary = findTimer(state.primaryTimerId);
+    renderPrimary(primary);
+    renderStrip(state.timers.filter((timer) => timer !== primary));
+    placeConfig(false);
+    syncWatchers();
+
+    ui.boardEmpty.hidden = state.timers.length > 0;
+    ui.primaryBlock.hidden = !primary;
+  }
+
+  // Mesmo ritmo do servidor, para o painel nunca ficar parado.
+  window.setInterval(desenhar, 250);
+
+  // -------------------------------------------------------------- destaque
+
+  function renderPrimary(timer) {
+    if (!timer) return;
+
+    ui.primaryBlock.dataset.timerId = timer.id;
+
+    const phase = getPhase(timer.pct);
+    const active = timer.status !== "stopped";
+
+    ui.primaryName.textContent = getTimerLabel(timer);
+    ui.primaryTime.textContent = formatTime(getDisplayMs(timer));
+    ui.primaryTime.className = `timer-display timer-display-d ${
+      active ? phase : "green"
+    }${timer.status === "paused" ? " paused" : ""}`;
+
+    ui.primaryMeta.replaceChildren(
+      document.createTextNode(getTimerMetaLabel(timer)),
+    );
+    const bonus = getBonusLabel(timer);
+    if (bonus) {
+      const tag = document.createElement("span");
+      tag.className = "bonus-tag";
+      tag.textContent = bonus;
+      ui.primaryMeta.appendChild(tag);
+    }
+
+    setProgress(ui.primaryProgress, timer, phase);
+    ui.primaryDot.className = `status-dot ${timer.status}`;
+    ui.primaryStatus.textContent = statusLabel(timer.status);
+    ui.primaryStart.disabled = timer.status === "running" || timer.status === "finished";
+    ui.primaryPause.disabled = timer.status !== "running";
+    ui.primaryReset.disabled = timer.status === "stopped" && timer.elapsed === 0;
+  }
+
+  // ----------------------------------------------------------- secundarios
+
+  function renderStrip(timers) {
+    const signature = timers.map((timer) => timer.id).join(",");
+
+    if (signature !== stripSignature) {
+      const present = new Set(timers.map((timer) => timer.id));
+      for (const [id, mini] of minis) {
+        if (present.has(id)) continue;
+        mini.root.remove();
+        minis.delete(id);
+      }
+      for (const timer of timers) {
+        let mini = minis.get(timer.id);
+        if (!mini) {
+          mini = createMini(timer.id);
+          minis.set(timer.id, mini);
+        }
+        ui.strip.appendChild(mini.root);
+      }
+      stripSignature = signature;
+    }
+
+    for (const timer of timers) updateMini(minis.get(timer.id), timer);
+  }
+
+  function createMini(timerId) {
+    const root = ui.miniTemplate.content.firstElementChild.cloneNode(true);
+    root.dataset.timerId = timerId;
+
+    return {
+      root,
+      dot: root.querySelector(".timer-mini-dot"),
+      name: root.querySelector(".timer-mini-name"),
+      time: root.querySelector(".timer-mini-time"),
+      meta: root.querySelector(".timer-mini-meta"),
+      progress: root.querySelector(".progress-fill"),
+      start: root.querySelector('[data-action="start"]'),
+      pause: root.querySelector('[data-action="pause"]'),
+      reset: root.querySelector('[data-action="reset"]'),
     };
   }
 
-  function toggleFullscreen() {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
+  function updateMini(mini, timer) {
+    if (!mini) return;
+
+    const phase = getPhase(timer.pct);
+    const active = timer.status !== "stopped";
+    const bonus = getBonusLabel(timer);
+
+    mini.dot.className = `timer-mini-dot ${timer.status}`;
+    mini.name.textContent = getTimerLabel(timer);
+    mini.time.textContent = formatTime(getDisplayMs(timer));
+    mini.time.className = `timer-mini-time ${active ? phase : "green"}${
+      timer.status === "paused" ? " paused" : ""
+    }`;
+    mini.meta.textContent = bonus
+      ? `${formatCompactDuration(timer.baseTotalTime)} · ${bonus}`
+      : formatCompactDuration(timer.totalTime);
+    setProgress(mini.progress, timer, phase);
+
+    mini.start.disabled = timer.status === "running" || timer.status === "finished";
+    mini.pause.disabled = timer.status !== "running";
+    mini.reset.disabled = timer.status === "stopped" && timer.elapsed === 0;
+  }
+
+  function setProgress(element, timer, phase) {
+    const fill = timer.direction === "up" ? 1 - timer.pct : timer.pct;
+    element.style.width = `${Math.round(fill * 1000) / 10}%`;
+    element.dataset.phase = phase;
+  }
+
+  // ------------------------------------------------------------------ acoes
+
+  function runAction(action, timerId) {
+    const timer = findTimer(timerId);
+    if (!timer) return;
+
+    if (action === "config") {
+      return toggleConfig(timer.id);
+    }
+
+    if (action === "reset") {
+      if (
+        timer.elapsed >= RESET_CONFIRM_MS &&
+        !window.confirm(
+          `Zerar "${getTimerLabel(timer)}"? A contagem atual será perdida.`,
+        )
+      ) {
+        return;
+      }
+      return socket.emit("timer:reset", timer.id);
+    }
+
+    socket.emit(`timer:${action}`, timer.id);
+  }
+
+  function addTimer(model) {
+    socket.emit(
+      "timer:add",
+      model
+        ? { name: model.name, direction: model.direction, totalTime: model.secs * 1000 }
+        : {},
+      (response) => {
+        if (!response?.success) {
+          return showFeedback(
+            response?.reason === "limit_reached"
+              ? `Limite de ${MAX_TIMERS_PER_SESSION} cronômetros por sessão.`
+              : "Não foi possível adicionar o cronômetro.",
+            "error",
+          );
+        }
+
+        // Abre os ajustes do recem-criado, que e o proximo passo obvio.
+        openTimerId = response.timerId;
+        selectedTimerId = response.timerId;
+      },
+    );
+  }
+
+  function moveSelected(offset) {
+    if (selectedTimerId) socket.emit("timer:move", selectedTimerId, offset);
+  }
+
+  function removeSelected() {
+    const timer = findTimer(selectedTimerId);
+    if (!timer) return;
+    if (!window.confirm(`Remover "${getTimerLabel(timer)}" da sessão?`)) return;
+    socket.emit("timer:remove", timer.id);
+  }
+
+  function emitUpdate(payload) {
+    if (selectedTimerId) socket.emit("timer:update", selectedTimerId, payload);
+  }
+
+  function readTimeMs() {
+    return (
+      (readNumber(ui.cfgH, 0, MAX_TIMER_HOURS) * 3600 +
+        readNumber(ui.cfgM, 0, 59) * 60 +
+        readNumber(ui.cfgS, 0, 59)) *
+      1000
+    );
+  }
+
+  /**
+   * Le o consumo digitado nos campos h/min/seg.
+   *
+   * Estava sendo chamada por "Registrar", "Registrar e iniciar" e pelos
+   * steppers sem nunca ter sido definida: cada clique morria num
+   * `ReferenceError` antes de emitir qualquer coisa, e a tela nao dava sinal
+   * nenhum - era esta a causa de o tempo ja consumido "nao ser respeitado".
+   */
+  function readOffsetMs() {
+    return (
+      (readNumber(ui.cfgOffH, 0, MAX_TIMER_HOURS) * 3600 +
+        readNumber(ui.cfgOffM, 0, 59) * 60 +
+        readNumber(ui.cfgOffS, 0, 59)) *
+      1000
+    );
+  }
+
+  function fillTimeInputs(ms) {
+    const { hours, minutes, seconds } = splitDuration(ms);
+    ui.cfgH.value = String(hours);
+    ui.cfgM.value = String(minutes);
+    ui.cfgS.value = String(seconds);
+  }
+
+  function fillOffsetInputs(ms) {
+    const { hours, minutes, seconds } = splitDuration(ms);
+    ui.cfgOffH.value = String(hours);
+    ui.cfgOffM.value = String(minutes);
+    ui.cfgOffS.value = String(seconds);
+  }
+
+  /**
+   * @param {boolean} iniciar tambem da Start, poupando o passo extra que era
+   * a reclamacao principal: definir o tempo e sair procurando o botao.
+   */
+  function applyTime(iniciar) {
+    const ms = readTimeMs();
+
+    if (ms < 1000 || ms > MAX_TIMER_MS) {
+      return showFeedback(
+        `Informe um tempo entre 1 segundo e ${MAX_TIMER_HOURS} horas.`,
+        "error",
+      );
+    }
+
+    emitUpdate({ totalTime: ms });
+    if (iniciar) startSelected();
+    showFeedback(
+      iniciar ? "Tempo aplicado e cronômetro iniciado." : "Tempo aplicado.",
+      "success",
+    );
+  }
+
+  function startSelected() {
+    if (selectedTimerId) socket.emit("timer:start", selectedTimerId);
+  }
+
+  const doisDigitos = (valor) => String(valor).padStart(2, "0");
+
+  /** Monta o valor de um `datetime-local` a partir de uma data local. */
+  function paraCampoDeData(data) {
+    return (
+      `${data.getFullYear()}-${doisDigitos(data.getMonth() + 1)}` +
+      `-${doisDigitos(data.getDate())}T${doisDigitos(data.getHours())}` +
+      `:${doisDigitos(data.getMinutes())}:${doisDigitos(data.getSeconds())}`
+    );
+  }
+
+  function preencherAgora() {
+    if (ui.cfgClock) ui.cfgClock.value = paraCampoDeData(new Date());
+  }
+
+  /**
+   * Calcula sozinho quanto ja correu desde o instante informado.
+   *
+   * O campo carrega data alem de hora, minuto e segundo porque uma contagem
+   * de 80 horas atravessa dias: so "08:00" nao diz se foi hoje, ontem ou
+   * anteontem. Vale igual para progressivo e regressivo - nos dois o que
+   * importa e quanto tempo passou desde o inicio.
+   *
+   * @param {boolean} iniciar aplica e ja da Start, sem passo intermediario.
+   */
+  function sincronizarPeloRelogio(iniciar) {
+    const valor = ui.cfgClock?.value;
+    if (!valor) {
+      return showFeedback("Informe a data e a hora em que começou.", "error");
+    }
+
+    const inicio = new Date(valor);
+    if (Number.isNaN(inicio.getTime())) {
+      return showFeedback("Data e hora inválidas.", "error");
+    }
+
+    const decorrido = Date.now() - inicio.getTime();
+    if (decorrido < 0) {
+      return showFeedback("Esse instante ainda não chegou.", "error");
+    }
+
+    const timer = findTimer(selectedTimerId);
+    if (!timer) return;
+
+    // Valida contra a duracao que esta NO FORMULARIO, nao contra a do
+    // servidor: quem digita 80h e a data de inicio espera que as duas coisas
+    // valham juntas. Antes o botao recusava dizendo "aumente o tempo" com o
+    // tempo ja preenchido logo acima.
+    const totalDoFormulario = readTimeMs();
+    if (totalDoFormulario < 1000 || totalDoFormulario > MAX_TIMER_MS) {
+      return showFeedback(
+        `Informe uma duração entre 1 segundo e ${MAX_TIMER_HOURS} horas.`,
+        "error",
+      );
+    }
+
+    // Mede contra o total EFETIVO (duracao do formulario + o que ja foi ganho
+    // por regra), senao um cronometro com bonus era recusado por estourar uma
+    // duracao que nao e mais a que vale.
+    const totalEfetivo = totalDoFormulario + timer.bonusMs;
+    if (decorrido > totalEfetivo) {
+      return showFeedback(
+        `Começou há ${formatTime(decorrido)}, mais que os ${formatTime(totalEfetivo)} disponíveis.`,
+        "error",
+      );
+    }
+
+    fillOffsetInputs(decorrido);
+    ui.clockHint.textContent = `Corre há ${formatTime(decorrido)}.`;
+
+    if (!iniciar) return;
+
+    // Duracao e ponto de partida vao juntos numa unica atualizacao: o
+    // servidor aplica o total primeiro e depois posiciona a contagem.
+    // So mandamos o total quando ele realmente mudou, porque trocar o total
+    // zera o tempo ganho por regra.
+    const mudouDuracao = totalDoFormulario !== timer.baseTotalTime;
+    emitUpdate(
+      mudouDuracao
+        ? { totalTime: totalDoFormulario, offsetMs: decorrido }
+        : { offsetMs: decorrido },
+    );
+    startSelected();
+
+    showFeedback(
+      `Sincronizado: corre há ${formatTime(decorrido)} de ${formatTime(totalDoFormulario)}.`,
+      "success",
+    );
+  }
+
+  /**
+   * Registra quanto ja foi consumido/decorrido fora do cronometro.
+   *
+   * Nao recusa mais valores acima do total: um intervalo que ganha tempo por
+   * regra pode ter sido usado alem do que ja foi concedido, e era exatamente
+   * esse caso que ficava sem saida - o valor era rejeitado e nao havia como
+   * descontar o que ja tinha sido gasto. O excesso vira divida, abatida
+   * sozinha conforme a regra concede mais tempo.
+   */
+  function applyOffset(ms, iniciar) {
+    const timer = findTimer(selectedTimerId);
+    if (!timer) return;
+
+    if (ms > MAX_TIMER_MS) {
+      return showFeedback(
+        `O valor precisa ser menor que ${MAX_TIMER_HOURS} horas.`,
+        "error",
+      );
+    }
+
+    emitUpdate({ offsetMs: ms });
+    if (iniciar) startSelected();
+
+    if (ms === 0) {
+      return showFeedback("Voltou para zero.", "success");
+    }
+
+    const rotulo = timer.direction === "up" ? "Decorrido" : "Consumido";
+    const excedente = ms - timer.totalTime;
+    const sufixo =
+      excedente > 0
+        ? ` — ${formatTime(excedente)} além do disponível, abatidos do próximo ganho.`
+        : iniciar
+          ? " e iniciado."
+          : ".";
+
+    showFeedback(`${rotulo} definido em ${formatTime(ms)}${sufixo}`, "success");
+  }
+
+  /**
+   * Soma ao consumo JA REGISTRADO no servidor e aplica na hora.
+   *
+   * Editar o valor absoluto exige lembrar do total anterior e somar de cabeca;
+   * o gesto real e "acabei de gastar mais 10 minutos".
+   */
+  function registrarConsumo(delta) {
+    const timer = findTimer(selectedTimerId);
+    if (!timer) return;
+
+    if (timer.status === "running") {
+      return showFeedback(
+        "Pause o cronômetro para registrar consumo.",
+        "error",
+      );
+    }
+
+    const alvo = Math.max(0, timer.offsetMs + delta);
+    fillOffsetInputs(alvo);
+    applyOffset(alvo, false);
+  }
+
+  function applyAccrual() {
+    if (!ui.accrualEnabled.checked) {
+      ui.accrualSentence.dataset.enabled = "false";
+      return emitUpdate({ accrual: null });
+    }
+
+    ui.accrualSentence.dataset.enabled = "true";
+
+    const everyMs =
+      (readNumber(ui.accrualEveryH, 0, 99) * 3600 +
+        readNumber(ui.accrualEveryM, 0, 59) * 60) *
+      1000;
+    const addMs = readNumber(ui.accrualAddM, 0, 599) * 60 * 1000;
+    const sourceTimerId = ui.accrualSource.value;
+
+    if (everyMs < MIN_ACCRUAL_EVERY_MS) {
+      return showFeedback("O intervalo da regra precisa ser de ao menos 1 minuto.", "error");
+    }
+    if (addMs < 1000) {
+      return showFeedback("Informe quantos minutos somar.", "error");
+    }
+    if (!sourceTimerId) {
+      return showFeedback("Escolha o cronômetro que dispara a regra.", "error");
+    }
+
+    emitUpdate({ accrual: { sourceTimerId, everyMs, addMs } });
+  }
+
+  // ------------------------------------------------------ modal de config
+
+  function toggleConfig(timerId) {
+    if (openTimerId === timerId) return closeConfig();
+
+    openTimerId = timerId;
+    selectedTimerId = timerId;
+    placeConfig(true);
+  }
+
+  function closeConfig() {
+    openTimerId = null;
+    ui.config.hidden = true;
+    // Fora dos blocos o painel nao interfere no grid dos secundarios.
+    document.body.appendChild(ui.config);
+    syncConfigToggles();
+  }
+
+  /**
+   * Move o painel para dentro do bloco aberto. Quando a faixa de secundarios
+   * e reconstruida o bloco anfitriao some junto, entao a cada estado o painel
+   * e reposicionado.
+   */
+  function placeConfig(selectionChanged) {
+    const timer = findTimer(openTimerId);
+    if (!timer) {
+      if (openTimerId) closeConfig();
       return;
     }
 
-    document.exitFullscreen().catch(() => {});
+    const host =
+      timer.id === state.primaryTimerId
+        ? ui.primaryBlock
+        : minis.get(timer.id)?.root;
+
+    if (!host) return;
+
+    if (ui.config.parentElement !== host) host.appendChild(ui.config);
+    ui.config.hidden = false;
+    ui.configTitle.textContent = `Ajustes · ${getTimerLabel(timer)}`;
+
+    if (selectionChanged) fillConfigForm(timer);
+    syncConfigLive(timer);
+    syncConfigToggles();
   }
 
-  function syncFullscreenButtons() {
-    const icon = document.fullscreenElement ? "✕" : "⛶";
-    if (elements.desktopFs) elements.desktopFs.textContent = icon;
-    if (elements.mobileFs) elements.mobileFs.textContent = icon;
+  function syncConfigToggles() {
+    for (const button of document.querySelectorAll('[data-action="config"]')) {
+      const id = button.closest("[data-timer-id]")?.dataset.timerId;
+      const aberto = Boolean(id) && id === openTimerId;
+      button.setAttribute("aria-expanded", String(aberto));
+      button.textContent = aberto ? "Fechar ajustes" : "Ajustar";
+    }
   }
 
-  function loadPresets() {
+  function fillConfigForm(timer) {
+    ui.cfgName.value = timer.name;
+
+    for (const button of ui.config.querySelectorAll("[data-direction]")) {
+      button.setAttribute(
+        "aria-pressed",
+        String(button.dataset.direction === timer.direction),
+      );
+    }
+
+    fillTimeInputs(timer.baseTotalTime);
+    fillOffsetInputs(timer.offsetMs);
+    if (ui.clockHint) ui.clockHint.textContent = "";
+
+    // Ja vem com o instante que a contagem atual implica: o campo serve de
+    // conferencia, nao so de entrada.
+    if (ui.cfgClock) {
+      ui.cfgClock.value = paraCampoDeData(new Date(Date.now() - timer.elapsed));
+    }
+
+    fillAccrualForm(timer);
+  }
+
+  function fillAccrualForm(timer) {
+    const others = state.timers.filter((item) => item.id !== timer.id);
+
+    ui.accrualSource.replaceChildren();
+    for (const other of others) {
+      const option = document.createElement("option");
+      option.value = other.id;
+      option.textContent = getTimerLabel(other);
+      ui.accrualSource.appendChild(option);
+    }
+
+    const rule = timer.accrual;
+    ui.accrualEnabled.checked = Boolean(rule);
+    ui.accrualEnabled.disabled = others.length === 0;
+    ui.accrualSentence.dataset.enabled = String(Boolean(rule));
+
+    if (rule) {
+      const every = splitDuration(rule.everyMs);
+      ui.accrualEveryH.value = String(every.hours);
+      ui.accrualEveryM.value = String(every.minutes);
+      ui.accrualAddM.value = String(Math.round(rule.addMs / 60000));
+      ui.accrualSource.value = rule.sourceTimerId;
+      return;
+    }
+
+    ui.accrualEveryH.value = "1";
+    ui.accrualEveryM.value = "0";
+    ui.accrualAddM.value = "5";
+    if (others.length) ui.accrualSource.value = others[0].id;
+  }
+
+  /** Partes do formulario que refletem o estado e podem mudar a cada tick. */
+  function syncConfigLive(timer) {
+    const isPrimary = timer.id === state.primaryTimerId;
+    const running = timer.status === "running";
+
+    // Os mesmos campos servem aos dois modos, mas o nome muda o sentido:
+    // num progressivo o valor e o que ja correu; num regressivo, o que ja foi
+    // gasto. Chamar os dois de "comecar em" era o que confundia.
+    const progressivo = timer.direction === "up";
+
+    ui.cfgDirectionHint.textContent = progressivo
+      ? "Conta para cima e mostra quanto já passou. O tempo abaixo é a meta."
+      : "Conta para baixo e mostra quanto falta. O tempo abaixo é a duração.";
+
+    ui.cfgTimeLabel.textContent = progressivo ? "Meta" : "Duração";
+    ui.cfgOffsetLabel.textContent = progressivo
+      ? "Já decorrido"
+      : "Já consumido";
+    ui.clockLabel.textContent = "Começou em";
+    ui.clockRow.hidden = false;
+    ui.clockSync.disabled = running;
+    ui.clockNow.disabled = running;
+    ui.fromClock.disabled = running;
+
+    ui.applyTime.disabled = running;
+    ui.applyStart.disabled = running;
+    ui.cfgTimeHint.textContent = running
+      ? "Pause o cronômetro para trocar o tempo."
+      : "Zera a contagem. O tempo ganho por regra continua valendo.";
+
+    ui.applyOffset.disabled = running;
+    ui.offsetStart.disabled = running;
+    ui.clearOffset.disabled = running || timer.offsetMs === 0;
+    if (ui.spendRow) ui.spendRow.hidden = running;
+    ui.cfgOffsetHint.textContent = running
+      ? `Pause para ajustar ${progressivo ? "o decorrido" : "o consumido"}.`
+      : timer.overspentMs > 0
+        ? `${formatTime(timer.offsetMs)} usados de ${formatTime(timer.totalTime)} disponíveis: ${formatTime(timer.overspentMs)} saem do próximo ganho.`
+        : timer.offsetMs > 0
+          ? `Parte de ${formatTime(timer.offsetMs)}. O Reset volta para cá, não para zero.`
+          : progressivo
+            ? "Use quando a contagem já vem de antes — ex.: a aula corre há 05:15:00."
+            : "Use para registrar o que já foi gasto sem o cronômetro rodando.";
+
+    if (ui.cfgLedger) {
+      const extrato = getLedgerLabel(timer);
+      ui.cfgLedger.textContent = extrato;
+      ui.cfgLedger.hidden = !extrato;
+      ui.cfgLedger.dataset.state = timer.overspentMs > 0 ? "over" : "ok";
+    }
+
+    ui.setPrimary.disabled = isPrimary;
+    ui.setPrimary.textContent = isPrimary
+      ? "Já é o destaque"
+      : "Destacar no viewer";
+    ui.moveUp.disabled = timer.index === 0;
+    ui.moveDown.disabled = timer.index === state.timers.length - 1;
+
+    const rule = timer.accrual;
+    if (!rule) {
+      ui.accrualStatus.textContent = state.timers.length < 2
+        ? "Adicione outro cronômetro para poder usar esta regra."
+        : "";
+      return;
+    }
+
+    const source = findTimer(rule.sourceTimerId);
+    const frase = getAccrualLabel(rule, source ? getTimerLabel(source) : "?");
+    ui.accrualStatus.textContent = timer.bonusMs
+      ? `${frase} · já somou ${formatCompactDuration(timer.bonusMs)} em ${rule.grantedCount}x`
+      : frase;
+  }
+
+  function openModal() {
+    ui.overlay.classList.add("open");
+    renderModels();
+  }
+
+  function closeModal() {
+    ui.overlay.classList.remove("open");
+  }
+
+  // ---------------------------------------------------------------- modelos
+
+  function loadModels() {
     try {
-      const raw = localStorage.getItem(presetsKey);
+      const raw =
+        localStorage.getItem(MODELS_KEY) ??
+        localStorage.getItem(legacyPresetsKey);
       if (!raw) return [];
 
       const parsed = JSON.parse(raw);
       if (!Array.isArray(parsed)) return [];
 
-      const safePresets = parsed
-        .map((preset) => sanitizePreset(preset))
-        .filter(Boolean)
-        .slice(0, MAX_PRESETS);
-
-      if (safePresets.length !== parsed.length) {
-        savePresets(safePresets);
-      }
-
-      return safePresets;
+      return parsed.map(sanitizeModel).filter(Boolean).slice(0, MAX_MODELS);
     } catch {
       return [];
     }
   }
 
-  function savePresets(presets) {
-    localStorage.setItem(presetsKey, JSON.stringify(presets));
-  }
+  function sanitizeModel(raw) {
+    if (!raw || typeof raw !== "object") return null;
 
-  function sanitizePreset(preset) {
-    if (!preset || typeof preset !== "object") return null;
-
-    const name = normalizePresetName(preset.name);
-    const secs = sanitizeSeconds(preset.secs);
-
-    if (!name || secs === null) return null;
-    return { name, secs };
-  }
-
-  function normalizePresetName(value) {
-    if (typeof value !== "string") return "";
-
-    return value
-      .replace(/[\u0000-\u001F\u007F]/g, "")
-      .trim()
-      .slice(0, MAX_PRESET_NAME_LENGTH);
-  }
-
-  function sanitizeSeconds(value) {
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed)) return null;
-
-    const safeValue = Math.trunc(parsed);
-    if (safeValue < 1 || safeValue > MAX_TIMER_SECONDS) {
+    const name = sanitizeTimerName(raw.name);
+    const secs = Math.trunc(Number(raw.secs));
+    if (!name || !Number.isFinite(secs) || secs < 1 || secs > MAX_TIMER_MS / 1000) {
       return null;
     }
 
-    return safeValue;
+    return { name, secs, direction: raw.direction === "up" ? "up" : "down" };
   }
 
-  function fmtPresetTime(secs) {
-    const hours = Math.floor(secs / 3600);
-    const minutes = Math.floor((secs % 3600) / 60);
-    const seconds = secs % 60;
+  function saveModelFromSelected() {
+    const timer = findTimer(selectedTimerId);
+    if (!timer) return;
 
-    if (hours > 0) return `${hours}h${minutes > 0 ? ` ${minutes}m` : ""}`;
-    if (minutes > 0 && seconds > 0) return `${minutes}m ${seconds}s`;
-    if (minutes > 0) return `${minutes} min`;
-    return `${seconds}s`;
-  }
+    const name = sanitizeTimerName(ui.cfgName.value) || getTimerLabel(timer);
+    const models = loadModels().filter(
+      (item) => item.name.toLowerCase() !== name.toLowerCase(),
+    );
 
-  function applyPreset(secs) {
-    const safeSeconds = sanitizeSeconds(secs);
-    if (safeSeconds === null) return;
-
-    syncTimeInputs(safeSeconds);
-    socket.emit("timer:setTime", safeSeconds * 1000);
-  }
-
-  function syncTimeInputs(totalSeconds) {
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-
-    setInputValue(elements.desktopInputH, hours);
-    setInputValue(elements.mobileInputH, hours);
-    setInputValue(elements.desktopInputM, minutes);
-    setInputValue(elements.mobileInputM, minutes);
-    setInputValue(elements.desktopInputS, seconds);
-    setInputValue(elements.mobileInputS, seconds);
-  }
-
-  function setInputValue(input, value) {
-    if (input) input.value = String(value);
-  }
-
-  function deletePreset(index) {
-    const presets = loadPresets();
-    presets.splice(index, 1);
-    savePresets(presets);
-    renderAll();
-  }
-
-  function renderAll() {
-    renderDesktopPresets();
-    renderMobilePresets();
-    renderDesktopManage();
-    renderMobileManage();
-  }
-
-  function renderDesktopPresets() {
-    const container = elements.desktopPresetsChips;
-    if (!container) return;
-
-    const presets = loadPresets();
-    container.replaceChildren();
-
-    if (!presets.length) {
-      container.appendChild(
-        createEmptyState("presets-empty-d", "Adicione nas configurações ⚙"),
-      );
-      return;
-    }
-
-    presets.forEach((preset) => {
-      const button = document.createElement("button");
-      button.className = "preset-chip-d";
-      button.type = "button";
-      button.textContent = preset.name;
-      button.addEventListener("click", () => applyPreset(preset.secs));
-      container.appendChild(button);
+    models.push({
+      name,
+      secs: Math.round(timer.baseTotalTime / 1000),
+      direction: timer.direction,
     });
+
+    try {
+      localStorage.setItem(MODELS_KEY, JSON.stringify(models.slice(-MAX_MODELS)));
+    } catch {
+      return showFeedback("Não foi possível salvar o modelo.", "error");
+    }
+
+    renderModels();
+    showFeedback(`Modelo "${name}" salvo.`, "success");
   }
 
-  function renderMobilePresets() {
-    const container = elements.mobilePresetsScroll;
-    if (!container) return;
+  function deleteModel(index) {
+    const models = loadModels();
+    models.splice(index, 1);
+    try {
+      localStorage.setItem(MODELS_KEY, JSON.stringify(models));
+    } catch {
+      /* nada a fazer alem de manter a tela como esta */
+    }
+    renderModels();
+  }
 
-    const presets = loadPresets();
-    container.replaceChildren();
+  function renderModels() {
+    const models = loadModels();
 
-    if (!presets.length) {
-      container.appendChild(
-        createEmptyState(
-          "presets-empty-m",
-          "Adicione presets nas configurações ⚙️",
-        ),
-      );
+    ui.modelsChips.replaceChildren();
+    if (!models.length) {
+      const vazio = document.createElement("span");
+      vazio.className = "presets-empty-d";
+      vazio.textContent = "Salve um cronômetro como modelo nas configurações";
+      ui.modelsChips.appendChild(vazio);
+    } else {
+      for (const model of models) {
+        const chip = document.createElement("button");
+        chip.className = "preset-chip-d";
+        chip.type = "button";
+        chip.textContent = `${model.name} · ${formatCompactDuration(model.secs * 1000)} ${
+          model.direction === "up" ? "↑" : "↓"
+        }`;
+        chip.title = `Adicionar cronômetro a partir de "${model.name}"`;
+        chip.addEventListener("click", () => addTimer(model));
+        ui.modelsChips.appendChild(chip);
+      }
+    }
+
+    if (!ui.modelsManage) return;
+    ui.modelsManage.replaceChildren();
+
+    if (!models.length) {
+      const vazio = document.createElement("div");
+      vazio.className = "presets-empty";
+      vazio.textContent = "Nenhum modelo salvo ainda.";
+      ui.modelsManage.appendChild(vazio);
       return;
     }
 
-    presets.forEach((preset) => {
-      const button = document.createElement("button");
-      button.className = "preset-chip-m";
-      button.type = "button";
-      button.textContent = preset.name;
-      button.addEventListener("click", () => applyPreset(preset.secs));
-      container.appendChild(button);
-    });
-  }
-
-  function renderDesktopManage() {
-    const container = elements.desktopManage;
-    if (!container) return;
-
-    const presets = loadPresets();
-    container.replaceChildren();
-
-    if (!presets.length) {
-      container.appendChild(
-        createEmptyState("presets-empty", "Nenhum preset ainda."),
-      );
-      return;
-    }
-
-    presets.forEach((preset, index) => {
+    models.forEach((model, index) => {
       const row = document.createElement("div");
       row.className = "preset-manage-row";
 
@@ -385,338 +1187,101 @@
 
       const name = document.createElement("div");
       name.className = "preset-manage-name";
-      name.textContent = preset.name;
+      name.textContent = model.name;
 
       const time = document.createElement("div");
       time.className = "preset-manage-time";
-      time.textContent = fmtPresetTime(preset.secs);
+      time.textContent = `${formatCompactDuration(model.secs * 1000)} · ${
+        model.direction === "up" ? "progressivo" : "regressivo"
+      }`;
 
-      const button = document.createElement("button");
-      button.className = "preset-del-btn";
-      button.type = "button";
-      button.textContent = "✕";
-      button.addEventListener("click", () => deletePreset(index));
+      const del = document.createElement("button");
+      del.className = "preset-del-btn";
+      del.type = "button";
+      del.textContent = "✕";
+      del.setAttribute("aria-label", `Excluir modelo ${model.name}`);
+      del.addEventListener("click", () => deleteModel(index));
 
       info.append(name, time);
-      row.append(info, button);
-      container.appendChild(row);
+      row.append(info, del);
+      ui.modelsManage.appendChild(row);
     });
   }
 
-  function renderMobileManage() {
-    const container = elements.mobileManage;
-    if (!container) return;
+  // ------------------------------------------------------------------ apoio
 
-    const presets = loadPresets();
-    container.replaceChildren();
-
-    if (!presets.length) {
-      container.appendChild(
-        createEmptyState("presets-empty", "Nenhum preset ainda."),
-      );
-      return;
-    }
-
-    presets.forEach((preset, index) => {
-      const row = document.createElement("div");
-      row.className = "preset-row-m";
-
-      const info = document.createElement("div");
-      info.className = "preset-row-info";
-
-      const name = document.createElement("div");
-      name.className = "preset-row-name";
-      name.textContent = preset.name;
-
-      const time = document.createElement("div");
-      time.className = "preset-row-time";
-      time.textContent = fmtPresetTime(preset.secs);
-
-      const button = document.createElement("button");
-      button.className = "preset-row-del";
-      button.type = "button";
-      button.textContent = "✕";
-      button.addEventListener("click", () => deletePreset(index));
-
-      info.append(name, time);
-      row.append(info, button);
-      container.appendChild(row);
-    });
+  function findTimer(timerId) {
+    if (!timerId) return null;
+    return state.timers.find((timer) => timer.id === timerId) || null;
   }
 
-  function createEmptyState(className, text) {
-    const element = document.createElement("div");
-    element.className = className;
-    element.textContent = text;
-    return element;
-  }
-
-  function readInputValue(input, min, max) {
+  function readNumber(input, min, max) {
     const parsed = Number.parseInt(input?.value ?? "", 10);
-    if (!Number.isFinite(parsed)) return min;
-    const safeValue = Math.min(max, Math.max(min, parsed));
-    if (input) input.value = String(safeValue);
-    return safeValue;
+    const safe = Number.isFinite(parsed)
+      ? Math.min(max, Math.max(min, parsed))
+      : min;
+    if (input) input.value = String(safe);
+    return safe;
   }
 
-  function getDesktopMs() {
-    return getTimeFromInputs(
-      elements.desktopInputH,
-      elements.desktopInputM,
-      elements.desktopInputS,
-    );
+  function statusLabel(status) {
+    if (status === "running") return "RODANDO";
+    if (status === "paused") return "PAUSADO";
+    if (status === "finished") return "FINALIZADO";
+    return "PARADO";
   }
 
-  function getMobileMs() {
-    return getTimeFromInputs(
-      elements.mobileInputH,
-      elements.mobileInputM,
-      elements.mobileInputS,
-    );
-  }
-
-  function getTimeFromInputs(hoursInput, minutesInput, secondsInput) {
-    const hours = readInputValue(hoursInput, 0, 23);
-    const minutes = readInputValue(minutesInput, 0, 59);
-    const seconds = readInputValue(secondsInput, 0, 59);
-    const totalSeconds = hours * 3600 + minutes * 60 + seconds;
-
-    if (totalSeconds < 1 || totalSeconds > MAX_TIMER_SECONDS) {
-      return 0;
+  function syncWatchers() {
+    const present = new Set(state.timers.map((timer) => timer.id));
+    for (const id of finishWatchers.keys()) {
+      if (!present.has(id)) finishWatchers.delete(id);
     }
 
-    return totalSeconds * 1000;
+    for (const timer of state.timers) {
+      let watcher = finishWatchers.get(timer.id);
+      if (!watcher) {
+        watcher = window.CronoFinishSound?.createWatcher();
+        if (!watcher) return;
+        finishWatchers.set(timer.id, watcher);
+      }
+      watcher.sync(timer.status, timer.remaining);
+    }
   }
 
-  function applyDesktopTime() {
-    const ms = getDesktopMs();
-    if (ms <= 0) return;
-    socket.emit("timer:setTime", ms);
-    closeModal();
+  function setAuthFeedback(message) {
+    if (ui.authFeedback) ui.authFeedback.textContent = message;
   }
 
-  function applyMobileTimeAndClose() {
-    const ms = getMobileMs();
-    if (ms <= 0) return;
-    socket.emit("timer:setTime", ms);
-    closeDrawer();
+  function showFeedback(message, kind) {
+    window.clearTimeout(feedbackTimer);
+    ui.boardFeedback.textContent = message;
+    ui.boardFeedback.dataset.state = kind;
+
+    feedbackTimer = window.setTimeout(() => {
+      ui.boardFeedback.textContent = "";
+      delete ui.boardFeedback.dataset.state;
+    }, FEEDBACK_MS);
   }
 
-  function saveDesktopPresetFromField() {
-    savePresetFromField("desktop", getDesktopMs());
-  }
-
-  function saveMobilePresetFromField() {
-    savePresetFromField("mobile", getMobileMs());
-  }
-
-  function savePresetFromField(mode, ms) {
-    const input =
-      mode === "desktop"
-        ? elements.desktopPresetName
-        : elements.mobilePresetName;
-    const name = normalizePresetName(input?.value || "");
-
-    if (ms <= 0) {
-      showPresetFeedback(
-        mode,
-        "Defina um tempo válido antes de salvar.",
-        "error",
-      );
-      input?.focus();
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
       return;
     }
-
-    if (!name) {
-      showPresetFeedback(mode, "Digite um nome para o preset.", "error");
-      input?.focus();
-      return;
-    }
-
-    upsertPreset(name, ms);
-    if (input) {
-      input.value = "";
-    }
-    showPresetFeedback(mode, "Preset salvo com sucesso.", "success");
+    document.exitFullscreen().catch(() => {});
   }
 
-  function addDesktopPreset() {
-    savePresetFromField("desktop", getDesktopMs());
-  }
-
-  function addMobilePreset() {
-    savePresetFromField("mobile", getMobileMs());
-  }
-
-  function upsertPreset(name, ms) {
-    const secs = sanitizeSeconds(ms / 1000);
-    if (secs === null) return;
-
-    const presets = loadPresets();
-    presets.push({ name, secs });
-    savePresets(presets.slice(-MAX_PRESETS));
-    renderAll();
-  }
-
-  function showPresetFeedback(mode, message, state) {
-    const feedback =
-      mode === "desktop"
-        ? elements.desktopPresetFeedback
-        : elements.mobilePresetFeedback;
-    const input =
-      mode === "desktop"
-        ? elements.desktopPresetName
-        : elements.mobilePresetName;
-
-    if (presetFeedbackTimers[mode]) {
-      window.clearTimeout(presetFeedbackTimers[mode]);
-      presetFeedbackTimers[mode] = 0;
-    }
-
-    if (!feedback || !input) return;
-
-    feedback.textContent = message;
-
-    if (message) {
-      feedback.dataset.state = state;
-      input.dataset.state = state;
-    } else {
-      delete feedback.dataset.state;
-      delete input.dataset.state;
-    }
-
-    if (state === "success" && message) {
-      presetFeedbackTimers[mode] = window.setTimeout(() => {
-        clearPresetFeedback(mode);
-      }, 2200);
-    }
-  }
-
-  function clearPresetFeedback(mode) {
-    showPresetFeedback(mode, "", "");
-  }
-
-  function openModal() {
-    elements.modalOverlay?.classList.add("open");
-    renderDesktopManage();
-  }
-
-  function closeModal() {
-    elements.modalOverlay?.classList.remove("open");
-  }
-
-  function openDrawer() {
-    elements.drawerOverlay?.classList.add("open");
-    elements.drawer?.classList.add("open");
-    renderMobileManage();
-  }
-
-  function closeDrawer() {
-    elements.drawerOverlay?.classList.remove("open");
-    elements.drawer?.classList.remove("open");
-  }
-
-  function timerStart() {
-    socket.emit("timer:start");
-  }
-
-  function timerPause() {
-    socket.emit("timer:pause");
-  }
-
-  function timerReset() {
-    socket.emit("timer:reset");
-  }
-
-  function updateTimers(remaining, pct, status) {
-    const safeRemaining = sanitizeMs(remaining);
-    const safePct = sanitizePct(pct);
-    const time = formatTime(safeRemaining);
-    const phase = getPhase(safePct);
-    const isActiveOrFinished =
-      status === "running" || status === "paused" || status === "finished";
-    const className = `timer-display ${isActiveOrFinished ? phase : "green"}`;
-    const barColor =
-      safePct <= 0.2 ? "#ff3e3e" : safePct <= 0.4 ? "#ffb800" : "#00f5a0";
-
-    if (elements.desktopTimer) {
-      elements.desktopTimer.textContent = time;
-      elements.desktopTimer.className = `${className} timer-display-d`;
-    }
-    if (elements.mobileTimer) {
-      elements.mobileTimer.textContent = time;
-      elements.mobileTimer.className = `${className} timer-display-m`;
-    }
-    if (elements.desktopProgress) {
-      elements.desktopProgress.style.width = `${safePct * 100}%`;
-      elements.desktopProgress.style.background = barColor;
-    }
-    if (elements.mobileProgress) {
-      elements.mobileProgress.style.width = `${safePct * 100}%`;
-      elements.mobileProgress.style.background = barColor;
-    }
-  }
-
-  function updateControls(status) {
-    [
-      {
-        dot: elements.desktopStatusDot,
-        text: elements.desktopStatusText,
-        start: elements.desktopStart,
-        pause: elements.desktopPause,
-      },
-      {
-        dot: elements.mobileStatusDot,
-        text: elements.mobileStatusText,
-        start: elements.mobileStart,
-        pause: elements.mobilePause,
-      },
-    ].forEach((set) => {
-      if (!set.dot || !set.text || !set.start || !set.pause) return;
-
-      set.dot.className = `status-dot ${status}`;
-
-      if (status === "running") {
-        set.text.textContent = "RODANDO";
-        set.start.disabled = true;
-        set.start.textContent = "Start";
-        set.pause.disabled = false;
-        return;
-      }
-
-      if (status === "paused") {
-        set.text.textContent = "PAUSADO";
-        set.start.disabled = false;
-        set.start.textContent = "Start";
-        set.pause.disabled = true;
-        return;
-      }
-
-      if (status === "finished") {
-        set.text.textContent = "FINALIZADO";
-        set.start.disabled = true;
-        set.start.textContent = "Start";
-        set.pause.disabled = true;
-        return;
-      }
-
-      set.text.textContent = "PARADO";
-      set.start.disabled = false;
-      set.start.textContent = "Start";
-      set.pause.disabled = true;
-    });
+  function syncFullscreen() {
+    if (!ui.fullscreen) return;
+    ui.fullscreen.textContent = document.fullscreenElement ? "✕" : "FS";
   }
 
   function showError(message) {
     socket.disconnect();
     document.body.classList.add("message-mode");
-    document.body.replaceChildren(createMessage(message));
-  }
-
-  function createMessage(message) {
-    const element = document.createElement("div");
-    element.className = "screen-message";
-    element.textContent = message;
-    return element;
+    const box = document.createElement("div");
+    box.className = "screen-message";
+    box.textContent = message;
+    document.body.replaceChildren(box);
   }
 })();

@@ -22,6 +22,12 @@ const {
   parseWebhookPayload,
   tokensMatch,
 } = require("./src/security");
+const {
+  createCredentials,
+  sanitizeUsername,
+  verifyCredentials,
+} = require("./src/auth");
+const { createSnapshotStore } = require("./src/persistence");
 const { createSessionStore } = require("./src/sessions");
 
 const app = express();
@@ -46,9 +52,38 @@ const sessionStore = createSessionStore({
   defaultTimerMs: config.DEFAULT_TIMER_MS,
   io,
   maxTimerMs: config.MAX_TIMER_MS,
+  maxTimerNameLength: config.MAX_TIMER_NAME_LENGTH,
+  maxTimersPerSession: config.MAX_TIMERS_PER_SESSION,
+  minAccrualAddMs: config.MIN_ACCRUAL_ADD_MS,
+  minAccrualEveryMs: config.MIN_ACCRUAL_EVERY_MS,
   sessionIdPattern: config.SESSION_ID_PATTERN,
   sessionTtlMs: config.SESSION_TTL_MS,
+  timerIdPattern: config.TIMER_ID_PATTERN,
 });
+
+const snapshotStore = createSnapshotStore({
+  filePath: config.STATE_FILE,
+  intervalMs: config.STATE_SAVE_MS,
+  logEvent,
+});
+
+const restauradas = sessionStore.importSessions(snapshotStore.load());
+if (restauradas) {
+  logEvent("sessions_restored", { sessions: restauradas });
+}
+
+snapshotStore.start(sessionStore.exportSessions);
+
+// Grava uma ultima vez ao desligar, para nao perder os segundos entre o
+// ultimo snapshot periodico e o encerramento.
+for (const sinal of ["SIGINT", "SIGTERM"]) {
+  process.once(sinal, () => {
+    snapshotStore.stop();
+    snapshotStore.save(sessionStore.exportSessions());
+    logEvent("server_stopping", { signal: sinal });
+    process.exit(0);
+  });
+}
 
 const cspDirectives = buildCspDirectives(
   process.env.NODE_ENV,
@@ -58,6 +93,9 @@ const globalLimiter = createLimiter(15 * 60 * 1000, 250);
 const createSessionLimiter = createLimiter(10 * 60 * 1000, 30);
 const activeSessionsLimiter = createLimiter(60 * 1000, 120);
 const webhookLimiter = createLimiter(15 * 60 * 1000, 20);
+// Tentativas de login sao caras de propósito (scrypt) e limitadas por IP,
+// para forca bruta nao valer a pena mesmo com senha curta.
+const loginLimiter = createLimiter(15 * 60 * 1000, 15);
 
 app.disable("x-powered-by");
 
@@ -200,19 +238,71 @@ app.use(
   }),
 );
 
-app.post("/api/session/new", createSessionLimiter, (request, response) => {
-  const session = sessionStore.createSession();
-  logEvent("session_created", {
-    sessionId: session.id,
-    totalTime: formatTimerMs(session.totalTime),
+app.post(
+  "/api/session/new",
+  createSessionLimiter,
+  async (request, response) => {
+    const session = sessionStore.createSession();
+
+    // Usuario e senha sao opcionais: sem eles a sessao segue funcionando
+    // apenas pelo link com o token, como antes.
+    const { username, password } = request.body || {};
+    let credentials = null;
+
+    if (username || password) {
+      credentials = await createCredentials(username, password);
+      if (!credentials) {
+        sessionStore.deleteSession(session.id);
+        return response.status(400).json({ error: "invalid_credentials" });
+      }
+      sessionStore.setSessionAuth(session, credentials);
+    }
+
+    logEvent("session_created", {
+      sessionId: session.id,
+      totalTime: formatTimerMs(sessionStore.getPrimaryTimer(session)?.totalTime),
+      withLogin: Boolean(credentials),
+      ip: getRequestIp(request),
+      userAgent: request.get("user-agent") || "unknown",
+    });
+
+    return response.status(201).json({
+      id: session.id,
+      adminToken: session.adminToken,
+    });
+  },
+);
+
+/**
+ * Recupera o token de admin com usuario e senha - o caminho para quem perdeu
+ * o link. A resposta nao distingue usuario errado de senha errada, e sessao
+ * sem login configurado responde igual, para nao virar um mapa de quais
+ * sessoes tem credencial.
+ */
+app.post("/api/session/:id/login", loginLimiter, async (request, response) => {
+  const sessionId = request.params.id;
+  const { username, password } = request.body || {};
+  const negar = () =>
+    response.status(401).json({ error: "invalid_credentials" });
+
+  if (!sessionStore.isValidSessionId(sessionId)) return negar();
+
+  const session = sessionStore.getSession(sessionId);
+  if (!session) return negar();
+
+  const credentials = sessionStore.getSessionAuth(session);
+  const ok = await verifyCredentials(credentials, username, password);
+
+  logEvent(ok ? "login_ok" : "login_denied", {
+    sessionId,
+    username: sanitizeUsername(username) || "unknown",
     ip: getRequestIp(request),
-    userAgent: request.get("user-agent") || "unknown",
   });
 
-  response.status(201).json({
-    id: session.id,
-    adminToken: session.adminToken,
-  });
+  if (!ok) return negar();
+
+  sessionStore.touchSession(session);
+  return response.json({ adminToken: session.adminToken });
 });
 
 app.get("/api/sessions/active", activeSessionsLimiter, (_request, response) => {
@@ -323,8 +413,8 @@ io.on("connection", (socket) => {
         buildSocketLogDetails(socket, {
           sessionId,
           role,
-          status: currentSession.status,
-          remaining: formatTimerMs(sessionStore.getRemaining(currentSession)),
+          timers: currentSession.timers.length,
+          remaining: formatTimerMs(getPrimaryRemaining(currentSession)),
           userAgent: getSocketUserAgent(socket),
         }),
       );
@@ -333,62 +423,131 @@ io.on("connection", (socket) => {
     },
   );
 
-  socket.on("timer:setTime", (ms) => {
+  socket.on("session:setAuth", async (payload, callback) => {
     const session = sessionStore.getAdminSession(socket);
-    const safeMs = sessionStore.sanitizeTimerMs(ms);
-    if (!session || safeMs === null || session.status === "running") return;
+    const responder = (resultado) => {
+      if (typeof callback === "function") callback(resultado);
+    };
 
-    session.totalTime = safeMs;
-    session.elapsed = 0;
-    session.startTime = null;
-    session.status = "stopped";
-    sessionStore.broadcastSession(socket.currentSession);
-  });
+    if (!session) return responder({ success: false, reason: "unauthorized" });
 
-  socket.on("timer:start", () => {
-    const session = sessionStore.getAdminSession(socket);
-    if (
-      !session ||
-      session.status === "running" ||
-      sessionStore.getRemaining(session) <= 0
-    )
-      return;
+    const { username, password } = payload || {};
 
-    session.startTime = Date.now();
-    session.status = "running";
-    sessionStore.touchSession(session);
-
-    if (!session.interval) {
-      const sessionId = socket.currentSession;
-      session.interval = setInterval(
-        () => sessionStore.broadcastSession(sessionId),
-        250,
+    if (!username && !password) {
+      sessionStore.setSessionAuth(session, null);
+      logEvent(
+        "auth_cleared",
+        buildSocketLogDetails(socket, { sessionId: session.id }),
       );
+      return responder({ success: true, hasAuth: false });
     }
 
-    sessionStore.broadcastSession(socket.currentSession);
+    const credentials = await createCredentials(username, password);
+    if (!credentials) {
+      return responder({ success: false, reason: "invalid_credentials" });
+    }
+
+    sessionStore.setSessionAuth(session, credentials);
+    logEvent(
+      "auth_set",
+      buildSocketLogDetails(socket, {
+        sessionId: session.id,
+        username: credentials.username,
+      }),
+    );
+
+    return responder({ success: true, hasAuth: true });
   });
 
-  socket.on("timer:pause", () => {
+  socket.on("timer:add", (payload, callback) => {
     const session = sessionStore.getAdminSession(socket);
-    if (!session || session.status !== "running") return;
+    if (!session) {
+      if (typeof callback === "function") {
+        callback({ success: false, reason: "unauthorized" });
+      }
+      return;
+    }
 
-    session.elapsed += Date.now() - session.startTime;
-    session.startTime = null;
-    session.status = "paused";
-    sessionStore.clearSessionInterval(session);
-    sessionStore.broadcastSession(socket.currentSession);
+    const timer = sessionStore.addTimer(session, readTimerPayload(payload));
+    if (!timer) {
+      if (typeof callback === "function") {
+        callback({ success: false, reason: "limit_reached" });
+      }
+      return;
+    }
+
+    logEvent(
+      "timer_added",
+      buildSocketLogDetails(socket, {
+        sessionId: session.id,
+        timerId: timer.id,
+        direction: timer.direction,
+        totalTime: formatTimerMs(timer.totalTime),
+      }),
+    );
+
+    sessionStore.broadcastSession(session.id);
+    if (typeof callback === "function") {
+      callback({ success: true, timerId: timer.id });
+    }
   });
 
-  socket.on("timer:reset", () => {
-    const session = sessionStore.getAdminSession(socket);
-    if (!session) return;
+  socket.on("timer:remove", (timerId) => {
+    withAdminSession(socket, (session) =>
+      sessionStore.removeTimer(session, timerId),
+    );
+  });
 
-    session.elapsed = 0;
-    session.startTime = null;
-    session.status = "stopped";
-    sessionStore.clearSessionInterval(session);
-    sessionStore.broadcastSession(socket.currentSession);
+  socket.on("timer:update", (timerId, payload) => {
+    withAdminSession(socket, (session) =>
+      sessionStore.updateTimer(session, timerId, readTimerPayload(payload)),
+    );
+  });
+
+  socket.on("timer:setPrimary", (timerId) => {
+    withAdminSession(socket, (session) =>
+      sessionStore.setPrimaryTimer(session, timerId),
+    );
+  });
+
+  socket.on("timer:move", (timerId, offset) => {
+    withAdminSession(socket, (session) =>
+      sessionStore.moveTimer(session, timerId, Number(offset) < 0 ? -1 : 1),
+    );
+  });
+
+  socket.on("timers:bulk", (action) => {
+    withAdminSession(socket, (session) =>
+      sessionStore.bulkTimerAction(session, action),
+    );
+  });
+
+  socket.on("timer:start", (timerId) => {
+    withAdminSession(socket, (session) =>
+      sessionStore.startSessionTimer(session, resolveTimerId(session, timerId)),
+    );
+  });
+
+  socket.on("timer:pause", (timerId) => {
+    withAdminSession(socket, (session) =>
+      sessionStore.pauseSessionTimer(session, resolveTimerId(session, timerId)),
+    );
+  });
+
+  socket.on("timer:reset", (timerId) => {
+    withAdminSession(socket, (session) =>
+      sessionStore.resetSessionTimer(session, resolveTimerId(session, timerId)),
+    );
+  });
+
+  // Evento do formato antigo (um cronometro por sessao): aplica o tempo ao
+  // cronometro em destaque para nao quebrar abas abertas antes do deploy.
+  socket.on("timer:setTime", (ms) => {
+    withAdminSession(socket, (session) =>
+      sessionStore.updateTimer(session, resolveTimerId(session), {
+        totalTime: ms,
+      }),
+    );
   });
 });
 
@@ -505,6 +664,43 @@ function buildSocketLogDetails(socket, extra = {}) {
 
 function getSocketUserAgent(socket) {
   return socket.request?.headers?.["user-agent"] || "unknown";
+}
+
+/**
+ * Executa uma mutacao que exige papel de admin e retransmite o estado quando
+ * algo realmente mudou, evitando broadcast a cada evento ignorado.
+ */
+function withAdminSession(socket, mutate) {
+  const session = sessionStore.getAdminSession(socket);
+  if (!session) return;
+
+  if (mutate(session)) {
+    sessionStore.broadcastSession(session.id);
+  }
+}
+
+/**
+ * Um id ausente cai no cronometro em destaque, que e o comportamento esperado
+ * tanto do cliente antigo (que nao enviava id) quanto dos atalhos de teclado.
+ */
+function resolveTimerId(session, timerId) {
+  if (timerId === undefined || timerId === null) {
+    return sessionStore.getPrimaryTimer(session)?.id ?? null;
+  }
+
+  return timerId;
+}
+
+function readTimerPayload(payload) {
+  if (!payload || typeof payload !== "object") return {};
+
+  const { accrual, direction, name, offsetMs, totalTime } = payload;
+  return { accrual, direction, name, offsetMs, totalTime };
+}
+
+function getPrimaryRemaining(session) {
+  const primary = sessionStore.getPrimaryTimer(session);
+  return primary ? sessionStore.getRemaining(primary) : 0;
 }
 
 function normalizeSessionId(value) {

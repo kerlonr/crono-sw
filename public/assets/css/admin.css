@@ -164,14 +164,12 @@ body.message-mode {
   pointer-events: none;
 }
 
-.badge,
-.topbar-title {
+.badge {
   position: relative;
   overflow: hidden;
 }
 
-.badge::after,
-.topbar-title::after {
+.badge::after {
   content: "";
   position: absolute;
   inset: -20% auto -20% -40%;
@@ -222,8 +220,6 @@ body.message-mode {
 
 .desktop-presets-label,
 .section-label,
-.drawer-section-label,
-.drawer-title,
 .modal-title {
   font-size: 10px;
   font-weight: 800;
@@ -241,15 +237,13 @@ body.message-mode {
   align-items: center;
 }
 
-.desktop-presets-actions,
-.topbar-actions {
+.desktop-presets-actions {
   display: flex;
   gap: 10px;
   margin-left: auto;
 }
 
-.preset-chip-d,
-.preset-chip-m {
+.preset-chip-d {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.8);
   border-radius: 999px;
@@ -281,22 +275,13 @@ body.message-mode {
   font-size: 13px;
 }
 
-.preset-chip-m {
-  padding: 12px 20px;
-  font-size: 15px;
-  flex-shrink: 0;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.preset-chip-d:hover,
-.preset-chip-m:active {
+.preset-chip-d:hover {
   transform: translateY(-2px);
   border-color: rgba(85, 174, 246, 0.56);
   color: var(--accent2);
 }
 
 .presets-empty-d,
-.presets-empty-m,
 .presets-empty {
   color: var(--ink-faint);
   font-style: italic;
@@ -305,11 +290,6 @@ body.message-mode {
 .presets-empty-d,
 .presets-empty {
   font-size: 12px;
-}
-
-.presets-empty-m {
-  font-size: 13px;
-  white-space: nowrap;
 }
 
 .timer-display {
@@ -326,11 +306,6 @@ body.message-mode {
   font-size: clamp(72px, 11vw, 118px);
   line-height: 0.95;
   text-shadow: 0 0 24px rgba(85, 174, 246, 0.12);
-}
-
-.timer-display-m {
-  font-size: clamp(62px, 18vw, 92px);
-  line-height: 0.94;
 }
 
 .timer-display.green {
@@ -439,11 +414,8 @@ body.message-mode {
 }
 
 .controls-d,
-.controls-m,
 .viewer-link-d,
-.viewer-link-m,
-.setter-actions,
-.drawer-actions {
+.setter-actions {
   display: flex;
   gap: 12px;
   align-items: center;
@@ -451,8 +423,7 @@ body.message-mode {
   flex-wrap: wrap;
 }
 
-.controls-d,
-.controls-m {
+.controls-d {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   width: 100%;
@@ -464,11 +435,7 @@ body.message-mode {
 }
 
 .btn-d,
-.btn-m,
 .btn-set,
-.btn-drawer-action,
-.btn-add-preset,
-.btn-add-m,
 .shortcut-link {
   appearance: none;
   border-radius: 16px;
@@ -492,26 +459,18 @@ body.message-mode {
 
 .btn-d:hover,
 .btn-set:hover,
-.btn-add-preset:hover,
-.shortcut-link:hover,
-.btn-drawer-action:hover,
-.btn-add-m:hover {
+.shortcut-link:hover {
   transform: translateY(-2px);
   border-color: rgba(85, 174, 246, 0.52);
   box-shadow: 0 18px 34px rgba(67, 104, 142, 0.16);
 }
 
 .btn-d:active,
-.btn-m:active,
-.btn-set:active,
-.btn-drawer-action:active,
-.btn-add-preset:active,
-.btn-add-m:active {
+.btn-set:active {
   transform: translateY(0) scale(0.985);
 }
 
-.btn-d:disabled,
-.btn-m:disabled {
+.btn-d:disabled {
   opacity: 0.34;
   pointer-events: none;
 }
@@ -530,9 +489,7 @@ body.message-mode {
 }
 
 .btn-start-d,
-.btn-start-m,
-.btn-set,
-.btn-drawer-action {
+.btn-set {
   background:
     linear-gradient(135deg, rgba(63, 201, 177, 0.56), rgba(85, 174, 246, 0.34)),
     rgba(255, 255, 255, 0.62);
@@ -540,17 +497,14 @@ body.message-mode {
 }
 
 .btn-pause-d,
-.btn-pause-m,
-.btn-set.secondary,
-.btn-drawer-action.sec {
+.btn-set.secondary {
   background:
     linear-gradient(135deg, rgba(247, 186, 82, 0.54), rgba(255, 213, 143, 0.3)),
     rgba(255, 255, 255, 0.62);
   color: #4a3208;
 }
 
-.btn-reset-d,
-.btn-reset-m {
+.btn-reset-d {
   background:
     linear-gradient(
       135deg,
@@ -562,17 +516,13 @@ body.message-mode {
   border-color: rgba(255, 190, 208, 0.84);
 }
 
-.btn-reset-d:hover,
-.btn-reset-m:hover {
+.btn-reset-d:hover {
   border-color: rgba(239, 111, 143, 0.42);
 }
 
 .btn-icon-d,
-.btn-icon-m,
 .btn-close-modal,
-.btn-close-drawer,
-.preset-del-btn,
-.preset-row-del {
+.preset-del-btn {
   appearance: none;
   display: inline-flex;
   align-items: center;
@@ -595,8 +545,7 @@ body.message-mode {
   cursor: pointer;
 }
 
-.btn-icon-d,
-.btn-icon-m {
+.btn-icon-d {
   width: 46px;
   height: 46px;
   font-size: 18px;
@@ -615,24 +564,18 @@ body.message-mode {
 }
 
 .btn-icon-d:hover,
-.btn-icon-m:hover,
 .btn-close-modal:hover,
-.btn-close-drawer:hover,
-.preset-del-btn:hover,
-.preset-row-del:hover {
+.preset-del-btn:hover {
   transform: translateY(-1px);
   border-color: rgba(85, 174, 246, 0.52);
 }
 
 .btn-close-modal:hover,
-.btn-close-drawer:hover,
-.preset-del-btn:hover,
-.preset-row-del:hover {
+.preset-del-btn:hover {
   color: var(--danger);
 }
 
-.btn-set,
-.btn-drawer-action {
+.btn-set {
   padding: 12px 20px;
   font-size: 12px;
   font-weight: 800;
@@ -641,8 +584,6 @@ body.message-mode {
   cursor: pointer;
 }
 
-.btn-add-preset,
-.btn-add-m,
 .shortcut-link {
   display: inline-flex;
   align-items: center;
@@ -663,20 +604,11 @@ body.message-mode {
   align-self: flex-start;
 }
 
-.shortcut-link.mobile {
-  width: 100%;
-}
-
-.presets-panel-head,
-.settings-shortcuts,
-.preset-name-stack,
-.modal-col,
-.drawer-section {
+.settings-shortcuts {
   position: relative;
 }
 
-.presets-panel-copy,
-.settings-shortcuts-copy {
+.presets-panel-copy {
   color: var(--ink-soft);
   font-size: 13px;
   line-height: 1.55;
@@ -692,34 +624,28 @@ body.message-mode {
   text-align: center;
 }
 
-.time-inputs,
-.time-inputs-m {
+.time-inputs {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
 }
 
-.time-input-group,
-.time-input-group-m {
+.time-input-group {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 5px;
 }
 
-.time-input-group label,
-.time-input-group-m label {
+.time-input-group label {
   font-size: 10px;
   letter-spacing: 0.15em;
   text-transform: uppercase;
   color: var(--ink-faint);
 }
 
-.time-input-group input,
-.time-input-group-m input,
-.add-preset-row input,
-.add-preset-row-m input {
+.time-input-group input {
   border: 1px solid rgba(255, 255, 255, 0.76);
   background:
     linear-gradient(
@@ -738,8 +664,7 @@ body.message-mode {
     transform 0.2s ease;
 }
 
-.time-input-group input,
-.time-input-group-m input {
+.time-input-group input {
   font-family: "Share Tech Mono", monospace;
   text-align: center;
 }
@@ -751,31 +676,7 @@ body.message-mode {
   font-size: 22px;
 }
 
-.time-input-group-m input {
-  width: 78px;
-  padding: 13px 10px;
-  border-radius: 14px;
-  font-size: 26px;
-  -webkit-appearance: none;
-}
-
-.add-preset-row input,
-.add-preset-row-m input {
-  min-width: 0;
-  width: 100%;
-  border-radius: 14px;
-  padding: 13px 14px;
-  font-size: 13px;
-}
-
-.add-preset-row-m input {
-  font-size: 14px;
-}
-
-.time-input-group input:focus,
-.time-input-group-m input:focus,
-.add-preset-row input:focus,
-.add-preset-row-m input:focus {
+.time-input-group input:focus {
   border-color: rgba(85, 174, 246, 0.56);
   box-shadow:
     0 0 0 4px rgba(85, 174, 246, 0.14),
@@ -783,20 +684,7 @@ body.message-mode {
   transform: translateY(-1px);
 }
 
-.add-preset-row input[data-state="error"],
-.add-preset-row-m input[data-state="error"] {
-  border-color: rgba(239, 111, 143, 0.56);
-  box-shadow: 0 0 0 4px rgba(239, 111, 143, 0.14);
-}
-
-.add-preset-row input[data-state="success"],
-.add-preset-row-m input[data-state="success"] {
-  border-color: rgba(63, 201, 177, 0.56);
-  box-shadow: 0 0 0 4px rgba(63, 201, 177, 0.14);
-}
-
-.time-sep,
-.time-sep-m {
+.time-sep {
   font-family: "Share Tech Mono", monospace;
   color: rgba(23, 50, 77, 0.36);
 }
@@ -806,46 +694,7 @@ body.message-mode {
   margin-top: 14px;
 }
 
-.time-sep-m {
-  font-size: 26px;
-  margin-top: 18px;
-}
-
-.preset-inline-feedback {
-  min-height: 16px;
-  color: var(--ink-faint);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.preset-inline-feedback[data-state="error"] {
-  color: var(--danger);
-}
-
-.preset-inline-feedback[data-state="success"] {
-  color: #22a98a;
-}
-
-.add-preset-row,
-.add-preset-row-m {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: start;
-  width: 100%;
-}
-
-.preset-name-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-
-.presets-manage-list,
-.presets-list-m {
+.presets-manage-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -861,12 +710,7 @@ body.message-mode {
   overflow-y: auto;
 }
 
-.presets-list-m {
-  margin-bottom: 14px;
-}
-
-.preset-manage-row,
-.preset-row-m {
+.preset-manage-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -892,24 +736,17 @@ body.message-mode {
   padding: 12px 14px;
 }
 
-.preset-row-m {
-  padding: 14px 16px;
-}
-
-.preset-manage-row:hover,
-.preset-row-m:hover {
+.preset-manage-row:hover {
   transform: translateY(-2px);
   border-color: rgba(85, 174, 246, 0.48);
 }
 
-.preset-manage-info,
-.preset-row-info {
+.preset-manage-info {
   min-width: 0;
   flex: 1;
 }
 
-.preset-manage-name,
-.preset-row-name {
+.preset-manage-name {
   color: var(--ink);
   font-weight: 600;
   overflow-wrap: anywhere;
@@ -920,12 +757,7 @@ body.message-mode {
   font-size: 13px;
 }
 
-.preset-row-name {
-  font-size: 15px;
-}
-
-.preset-manage-time,
-.preset-row-time {
+.preset-manage-time {
   margin-top: 6px;
   font-family: "Share Tech Mono", monospace;
   color: var(--ink-faint);
@@ -935,23 +767,13 @@ body.message-mode {
   font-size: 11px;
 }
 
-.preset-row-time {
-  font-size: 12px;
-}
-
-.preset-del-btn,
-.preset-row-del {
+.preset-del-btn {
   padding: 8px 10px;
   flex: 0 0 auto;
 }
 
 .preset-del-btn {
   font-size: 14px;
-}
-
-.preset-row-del {
-  font-size: 18px;
-  -webkit-tap-highlight-color: transparent;
 }
 
 .modal-overlay {
@@ -994,8 +816,7 @@ body.message-mode {
   animation: modalIn 0.26s ease;
 }
 
-.modal-header,
-.drawer-header {
+.modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1011,242 +832,10 @@ body.message-mode {
   padding: 24px 28px 18px;
 }
 
-.drawer-header {
-  padding: 16px 24px 14px;
-}
-
-.btn-close-modal,
-.btn-close-drawer {
+.btn-close-modal {
   width: 38px;
   height: 38px;
   font-size: 18px;
-}
-
-.modal-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
-  grid-template-areas:
-    "time manage"
-    "overview manage";
-  gap: 20px;
-  padding: 24px 28px 28px;
-  overflow: auto;
-  align-items: stretch;
-}
-
-.modal-col {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 0;
-  min-height: 0;
-  padding: 18px;
-  border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  background:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.74),
-      rgba(255, 255, 255, 0.48)
-    ),
-    rgba(255, 255, 255, 0.42);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.84);
-}
-
-.modal-col-time {
-  grid-area: time;
-  justify-content: flex-start;
-}
-
-.modal-col-overview {
-  grid-area: overview;
-  align-items: flex-start;
-  justify-content: flex-start;
-  text-align: left;
-}
-
-.modal-col-manage {
-  grid-area: manage;
-  align-self: stretch;
-  background:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.82),
-      rgba(255, 255, 255, 0.5)
-    ),
-    rgba(255, 255, 255, 0.42);
-}
-
-.modal-col-manage .presets-manage-list {
-  flex: 1;
-  max-height: none;
-}
-
-.mobile-layout {
-  display: none;
-  flex-direction: column;
-  align-items: center;
-  width: 100%;
-  min-height: 100dvh;
-  animation: panelIn 0.42s ease;
-}
-
-.topbar {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px 14px;
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.6);
-  background:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.84),
-      rgba(255, 255, 255, 0.52)
-    ),
-    rgba(255, 255, 255, 0.44);
-  backdrop-filter: blur(22px);
-  -webkit-backdrop-filter: blur(22px);
-}
-
-.topbar-title {
-  color: var(--accent2);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.3em;
-  text-transform: uppercase;
-}
-
-.mobile-main {
-  flex: 1;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-  padding: 28px 20px 40px;
-}
-
-.presets-scroll-m {
-  width: 100%;
-  display: flex;
-  gap: 10px;
-  overflow-x: auto;
-  padding-bottom: 4px;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-
-.presets-scroll-m::-webkit-scrollbar {
-  display: none;
-}
-
-.controls-m {
-  width: 100%;
-}
-
-.btn-m {
-  width: 100%;
-  min-width: 0;
-  min-height: 56px;
-  padding: 0 6px;
-  font-size: 13px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  text-align: center;
-  -webkit-tap-highlight-color: transparent;
-  white-space: nowrap;
-}
-
-.btn-reset-m {
-  font-size: 13px;
-}
-
-.drawer-overlay {
-  display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  background: rgba(224, 237, 251, 0.42);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-}
-
-.drawer-overlay.open {
-  display: block;
-  animation: fadeIn 0.2s ease;
-}
-
-.drawer {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 101;
-  max-height: 88dvh;
-  overflow-y: auto;
-  transform: translateY(100%);
-  transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
-  border-top: 1px solid rgba(255, 255, 255, 0.82);
-  border-radius: 28px 28px 0 0;
-  background:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.86),
-      rgba(255, 255, 255, 0.58)
-    ),
-    rgba(255, 255, 255, 0.48);
-  backdrop-filter: blur(22px);
-  -webkit-backdrop-filter: blur(22px);
-  box-shadow: 0 -16px 44px rgba(67, 104, 142, 0.16);
-}
-
-.drawer.open {
-  transform: translateY(0);
-}
-
-.drawer-handle {
-  width: 48px;
-  height: 5px;
-  border-radius: 999px;
-  margin: 14px auto 0;
-  background: rgba(23, 50, 77, 0.18);
-}
-
-.drawer-section {
-  padding: 20px 24px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.58);
-}
-
-.sp-embed-layer {
-  display: block;
-  position: fixed;
-  inset: auto 12px 12px auto;
-  width: min(340px, 34vw);
-  margin: 0;
-  z-index: 40;
-  pointer-events: auto;
-}
-
-.sp-embed-frame-wrap {
-  position: relative;
-  border-radius: 12px;
-  overflow: hidden;
-  border: 1px solid rgba(169, 214, 255, 0.16);
-  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-.sp-embed-frame {
-  display: block;
-  width: 100%;
-  border: 0;
-  border-radius: 12px;
 }
 
 @keyframes fadeIn {
@@ -1367,62 +956,25 @@ body.message-mode {
 @media (min-width: 768px) {
   .desktop-layout {
     display: flex;
-  }
-
-  .mobile-layout {
-    display: none !important;
-  }
-
-  .drawer-overlay,
-  .drawer {
-    display: none !important;
-  }
-}
+  }}
 
 @media (max-width: 1100px) {
   .modal {
     max-width: 700px;
-  }
-
-  .modal-grid {
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      "time"
-      "manage"
-      "overview";
-    gap: 18px;
-  }
-}
+  }}
 
 @media (max-width: 980px) {
   .desktop-presets-actions {
     width: 100%;
     justify-content: flex-end;
     margin-left: 0;
-  }
-}
+  }}
 
 @media (max-width: 860px) {
-  .add-preset-row {
-    grid-template-columns: 1fr;
-  }
-
-  .btn-add-preset {
-    width: 100%;
-  }
-
-  .modal-grid {
-    padding: 20px;
-  }
 
   .modal-header {
     padding: 20px 20px 16px;
-  }
-
-  .modal-col {
-    padding: 16px;
-  }
-}
+  }}
 
 @media (max-width: 767px) {
   body {
@@ -1433,26 +985,9 @@ body.message-mode {
     display: none !important;
   }
 
-  .mobile-layout {
-    display: flex;
-  }
-
   .modal-overlay {
     display: none !important;
-  }
-
-  .add-preset-row-m {
-    grid-template-columns: 1fr;
-  }
-
-  .btn-add-m {
-    width: 100%;
-  }
-
-  .sp-embed-layer {
-    display: none;
-  }
-}
+  }}
 
 :root {
   --bg-top: #040812;
@@ -1511,12 +1046,8 @@ body::after {
 .desktop-presets-bar,
 .progress-wrap,
 .status-row,
-.presets-panel-head,
 .settings-shortcuts,
-.modal,
-.modal-col,
-.drawer,
-.drawer-section {
+.modal {
   border-color: var(--glass-line);
   background:
     linear-gradient(180deg, rgba(24, 39, 65, 0.78), rgba(8, 16, 29, 0.84)),
@@ -1541,8 +1072,7 @@ body::after {
   color: var(--accent2);
 }
 
-.badge::after,
-.topbar-title::after {
+.badge::after {
   background: linear-gradient(
     90deg,
     transparent,
@@ -1552,20 +1082,12 @@ body::after {
 }
 
 .preset-chip-d,
-.preset-chip-m,
 .btn-d,
-.btn-m,
 .btn-set,
-.btn-drawer-action,
-.btn-add-preset,
-.btn-add-m,
 .shortcut-link,
 .btn-icon-d,
-.btn-icon-m,
 .btn-close-modal,
-.btn-close-drawer,
-.preset-del-btn,
-.preset-row-del {
+.preset-del-btn {
   border-color: var(--glass-line);
   background:
     linear-gradient(180deg, rgba(26, 41, 67, 0.82), rgba(10, 18, 33, 0.9)),
@@ -1574,8 +1096,7 @@ body::after {
   box-shadow: var(--shadow-soft);
 }
 
-.preset-manage-row,
-.preset-row-m {
+.preset-manage-row {
   border-color: rgba(169, 214, 255, 0.14);
   background:
     linear-gradient(180deg, rgba(21, 34, 57, 0.92), rgba(8, 16, 29, 0.96)),
@@ -1584,27 +1105,18 @@ body::after {
 }
 
 .preset-chip-d:hover,
-.preset-chip-m:active,
 .btn-d:hover,
 .btn-set:hover,
-.btn-add-preset:hover,
 .shortcut-link:hover,
-.btn-drawer-action:hover,
-.btn-add-m:hover,
 .btn-icon-d:hover,
-.btn-icon-m:hover,
 .btn-close-modal:hover,
-.btn-close-drawer:hover,
-.preset-del-btn:hover,
-.preset-row-del:hover {
+.preset-del-btn:hover {
   border-color: rgba(122, 191, 255, 0.38);
   box-shadow: 0 18px 36px rgba(0, 0, 0, 0.28);
 }
 
 .btn-start-d,
-.btn-start-m,
-.btn-set,
-.btn-drawer-action {
+.btn-set {
   background:
     linear-gradient(
       135deg,
@@ -1616,9 +1128,7 @@ body::after {
 }
 
 .btn-pause-d,
-.btn-pause-m,
-.btn-set.secondary,
-.btn-drawer-action.sec {
+.btn-set.secondary {
   background:
     linear-gradient(
       135deg,
@@ -1629,8 +1139,7 @@ body::after {
   color: #221200;
 }
 
-.btn-reset-d,
-.btn-reset-m {
+.btn-reset-d {
   border-color: rgba(255, 59, 48, 0.28);
   background:
     linear-gradient(135deg, rgba(255, 59, 48, 0.28), rgba(54, 6, 6, 0.94)),
@@ -1638,10 +1147,7 @@ body::after {
   color: #ffe5e2;
 }
 
-.time-input-group input,
-.time-input-group-m input,
-.add-preset-row input,
-.add-preset-row-m input {
+.time-input-group input {
   border-color: var(--glass-line);
   background:
     linear-gradient(180deg, rgba(19, 31, 53, 0.92), rgba(8, 16, 29, 0.96)),
@@ -1650,10 +1156,7 @@ body::after {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
-.time-input-group input:focus,
-.time-input-group-m input:focus,
-.add-preset-row input:focus,
-.add-preset-row-m input:focus {
+.time-input-group input:focus {
   border-color: rgba(122, 191, 255, 0.42);
   box-shadow:
     0 0 0 4px rgba(122, 191, 255, 0.12),
@@ -1673,7 +1176,6 @@ body::after {
   );
 }
 
-.drawer-overlay,
 .modal-overlay {
   background: rgba(2, 7, 14, 0.58);
   backdrop-filter: blur(12px);
@@ -1681,20 +1183,11 @@ body::after {
 }
 
 .modal-header,
-.drawer-header,
-.drawer-section,
-.settings-shortcuts,
-.presets-panel-actions,
-.shortcut-row,
-.card-actions {
+.settings-shortcuts {
   border-color: rgba(169, 214, 255, 0.14);
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-}
-
-.drawer-handle {
-  background: rgba(237, 245, 255, 0.18);
 }
 
 .timer-display.red,
@@ -1711,162 +1204,1136 @@ body::after {
 }
 
 @media (max-width: 767px) {
-  .drawer {
-    top: max(10px, env(safe-area-inset-top));
-    right: 8px;
-    bottom: 8px;
-    left: 8px;
-    display: flex;
-    max-height: none;
-    flex-direction: column;
-    overflow: hidden;
-    border: 1px solid rgba(169, 214, 255, 0.2);
-    border-radius: 22px;
-    transform: translateY(calc(100% + 18px));
-  }
-
-  .drawer-handle {
-    width: 42px;
-    height: 4px;
-    flex: 0 0 auto;
-    margin-top: 8px;
-  }
-
-  .drawer-header {
-    align-items: center;
-    flex: 0 0 auto;
-    padding: 8px 14px 10px;
-    border-bottom: 1px solid rgba(169, 214, 255, 0.12);
-  }
-
-  .drawer-title {
-    font-size: 12px;
-    letter-spacing: 0.2em;
-  }
-
-  .btn-close-drawer {
-    width: 34px;
-    height: 34px;
-    font-size: 15px;
-  }
-
-  .drawer-section {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-    margin: 0 12px 10px;
-    padding: 12px;
-    border: 1px solid rgba(169, 214, 255, 0.14);
-    border-radius: 16px;
-    background:
-      linear-gradient(180deg, rgba(22, 36, 58, 0.88), rgba(8, 16, 29, 0.86)),
-      rgba(10, 18, 33, 0.72);
-    box-shadow: none;
-  }
-
-  .drawer-section-time {
-    flex: 0 0 auto;
-    margin-top: 4px;
-  }
-
-  .drawer-section-manage {
-    flex: 1 1 auto;
-    min-height: 0;
-  }
-
-  .drawer-section-overview {
-    flex: 0 0 auto;
-    margin-bottom: 12px;
-  }
-
-  .time-inputs-m {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr);
-    gap: 7px;
-    align-items: end;
-    width: 100%;
-  }
-
-  .time-input-group-m {
-    min-width: 0;
-    gap: 4px;
-  }
-
-  .time-input-group-m input {
-    width: 100%;
-    min-height: 52px;
-    padding: 8px 6px;
-    border-radius: 12px;
-    font-size: 22px;
-  }
-
-  .time-sep-m {
-    margin: 0 0 10px;
-    font-size: 20px;
-  }
-
-  .drawer-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-    width: 100%;
-  }
-
-  .btn-drawer-action {
-    min-height: 46px;
-    padding: 0 10px;
-    font-size: 12px;
-    letter-spacing: 0.08em;
-  }
-
-  .presets-list-m {
-    flex: 1 1 auto;
-    max-height: none;
-    min-height: 74px;
-    margin-bottom: 0;
-    padding: 8px;
-    border-radius: 14px;
-    overflow-y: auto;
-  }
 
   .presets-empty {
     padding: 8px 4px;
     font-size: 12px;
-  }
+  }}/* ==========================================================================
+   Multiplos cronometros
 
-  .add-preset-row-m {
-    gap: 10px;
-  }
+   Tudo acima deste ponto e o CSS original, preservado sem alteracao. Daqui
+   para baixo entram apenas as pecas novas, e elas usam somente as variaveis
+   de tema ja definidas (--glass, --glass-line, --ink...), para acompanharem
+   o mesmo visual sem precisar repetir cores.
+   ========================================================================== *//* Layout unico: com N cronometros, manter as duas arvores de DOM (desktop e
+   mobile) significaria duplicar cada bloco. O painel do desktop passa a valer
+   em qualquer largura e recebe, mais abaixo, o dimensionamento do mobile. */
 
-  .add-preset-row-m input,
-  .btn-add-m,
-  .shortcut-link.mobile {
-    min-height: 44px;
-    border-radius: 12px;
-  }
+#admin-panel .desktop-layout {
+  display: flex !important;
 }
 
-@media (max-width: 380px), (max-height: 720px) {
-  .drawer-section {
-    gap: 10px;
-    margin-inline: 10px;
-    margin-bottom: 8px;
-    padding: 10px;
+[hidden] {
+  display: none !important;
+}/* ------------------------------------------------------------- destaque */
+
+.primary-block {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.primary-name {
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.3em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.primary-meta {
+  color: var(--ink-faint);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-align: center;
+}
+
+.bonus-tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 10px;
+  border: 1px solid var(--glass-line);
+  border-radius: 999px;
+  background: rgba(88, 234, 208, 0.14);
+  color: var(--accent);
+  font-weight: 800;
+}/* --------------------------------------------------------- secundarios */
+
+.timer-strip {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr));
+  gap: 12px;
+}
+
+.timer-mini {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--glass-line);
+  border-radius: 22px;
+  background: var(--glass);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition: border-color 0.25s ease;
+}
+
+.timer-mini-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.timer-mini-name {
+  overflow: hidden;
+  flex: 1 1 auto;
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.timer-mini-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: rgba(188, 208, 229, 0.32);
+}
+
+.timer-mini-dot.running {
+  background: var(--accent);
+  box-shadow: 0 0 0 4px rgba(88, 234, 208, 0.18);
+}
+
+.timer-mini-dot.paused {
+  background: var(--warn);
+}
+
+.timer-mini-dot.finished {
+  background: var(--danger);
+}
+
+.timer-mini-time {
+  color: var(--ink);
+  font-family: "Share Tech Mono", monospace;
+  font-size: clamp(30px, 7vw, 44px);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  transition: color 0.35s ease;
+}
+
+.timer-mini-meta {
+  min-height: 15px;
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+
+.timer-mini .progress-wrap {
+  height: 8px;
+}
+
+.timer-mini-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.btn-mini {
+  min-height: 38px;
+  padding: 0 6px;
+  border: 1px solid var(--glass-line);
+  border-radius: 12px;
+  background: var(--glass-strong);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  transition:
+    transform 0.15s ease,
+    opacity 0.2s ease;
+}
+
+.btn-mini:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.btn-mini:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+.btn-mini-start {
+  border-color: transparent;
+  background: linear-gradient(120deg, var(--accent), #7ff0dd);
+  color: #06342c;
+}
+
+.btn-mini-pause {
+  border-color: transparent;
+  background: linear-gradient(120deg, var(--warn), #ffd79a);
+  color: #4a3308;
+}/* Fases de cor, iguais as do cronometro grande. */
+
+.timer-display.green,
+.timer-mini-time.green {
+  color: var(--accent);
+}
+
+.timer-display.yellow,
+.timer-mini-time.yellow {
+  color: var(--warn);
+}
+
+.timer-display.red,
+.timer-mini-time.red,
+.timer-display.blink,
+.timer-mini-time.blink {
+  color: var(--danger);
+}
+
+.timer-display.blink,
+.timer-mini-time.blink {
+  animation: timerBlink 0.56s infinite;
+}
+
+.timer-display.paused,
+.timer-mini-time.paused {
+  opacity: 0.55;
+}
+
+@keyframes timerBlink {
+  0%,
+  100% {
+    opacity: 1;
   }
 
-  .time-input-group-m input {
-    min-height: 48px;
-    font-size: 20px;
+  50% {
+    opacity: 0.28;
+  }
+}/* O CSS nao interpola entre dois `linear-gradient`: trocar o fundo da barra
+   fazia a cor PULAR de verde para amarelo e para vermelho.
+   A fase passa a viver em `background-color`, que interpola, e o brilho do
+   gradiente vira `background-image` semitransparente por cima - some a troca
+   seca sem perder o acabamento. Sao propriedades separadas, entao a imagem
+   fica parada enquanto so a cor por baixo muda. */
+
+.progress-fill {
+  background-color: var(--accent);
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.14),
+    rgba(122, 191, 255, 0.32)
+  );
+  transition:
+    width 0.12s linear,
+    background-color 0.55s ease;
+}
+
+.progress-fill[data-phase="yellow"] {
+  background-color: var(--warn);
+}
+
+.progress-fill[data-phase="red"],
+.progress-fill[data-phase="blink"] {
+  background-color: var(--danger);
+}
+
+.board-empty {
+  padding: 18px;
+  color: var(--ink-faint);
+  font-size: 14px;
+  text-align: center;
+}
+
+.board-feedback {
+  min-height: 18px;
+  color: var(--ink-faint);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.board-feedback[data-state="error"] {
+  color: var(--danger);
+}/* ------------------------------------------------- modal de configuracao *//* O modal original tinha altura suficiente para um cronometro so. Com a lista
+   e o formulario completo o conteudo passa da altura maxima, entao ele precisa
+   rolar - sem isso as acoes e os modelos ficam inalcancaveis. */
+
+#modal-overlay .modal {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.config-grid {
+  display: grid;
+  grid-template-columns: minmax(190px, 250px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.config-column {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.config-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 12px;
+  border: 1px solid var(--glass-line);
+  border-radius: 14px;
+  background: var(--glass);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.config-item[aria-selected="true"] {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.config-item-name {
+  overflow: hidden;
+  flex: 1 1 auto;
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.config-item-time {
+  color: var(--ink-faint);
+  font-family: "Share Tech Mono", monospace;
+  font-size: 12px;
+}
+
+.config-item-star {
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-label {
+  color: var(--ink-faint);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.field-hint {
+  color: var(--ink-faint);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.field input[type="text"],
+.field input[type="number"],
+.field select {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--glass-line);
+  border-radius: 12px;
+  background: var(--glass-strong);
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.field input:focus,
+.field select:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--glass-line);
+  border-radius: 14px;
+  background: var(--glass);
+}
+
+.segmented button {
+  padding: 9px 6px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+.segmented button[aria-pressed="true"] {
+  background: linear-gradient(
+    120deg,
+    rgba(88, 234, 208, 0.26),
+    rgba(122, 191, 255, 0.26)
+  );
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}/* A regra de bonus e escrita como uma frase, para caber na cabeca sem
+   precisar de legenda: "a cada 1h de Aula, somar 5 min". */
+
+.accrual-sentence {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 14px;
+  border: 1px solid var(--glass-line);
+  border-radius: 16px;
+  background: var(--glass);
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.accrual-sentence input[type="number"] {
+  width: 72px;
+  padding: 8px 6px;
+  border: 1px solid var(--glass-line);
+  border-radius: 10px;
+  background: var(--glass-strong);
+  color: var(--ink);
+  font-family: "Share Tech Mono", monospace;
+  font-size: 14px;
+  text-align: center;
+}
+
+.accrual-sentence select {
+  padding: 8px 10px;
+  border: 1px solid var(--glass-line);
+  border-radius: 10px;
+  background: var(--glass-strong);
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.accrual-sentence[data-enabled="false"] {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.accrual-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.accrual-toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.accrual-status {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.config-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-danger {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid rgba(255, 59, 48, 0.4);
+  border-radius: 14px;
+  background: rgba(255, 59, 48, 0.12);
+  color: var(--danger);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.btn-danger:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}/* ------------------------------------------------------------- responsivo *//* Abaixo de 768px o painel unico assume o dimensionamento que era do layout
+   mobile original, e o modal vira folha inferior, como o antigo drawer. */@media (max-width: 767px) {
+  #admin-panel .desktop-layout {
+    width: 100%;
+    gap: 16px;
+    padding: 20px 14px 26px;
+    border-radius: 26px;
   }
 
-  .btn-drawer-action,
-  .btn-add-m,
-  .shortcut-link.mobile {
-    min-height: 42px;
+  .timer-display-d {
+    font-size: clamp(52px, 16vw, 88px);
   }
 
-  .presets-list-m {
-    min-height: 56px;
+  .controls-d {
+    gap: 8px;
   }
+
+  .btn-d {
+    min-height: 50px;
+    padding: 0 8px;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+  }
+
+  .timer-strip {
+    grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+  }
+
+  .config-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #modal-overlay .modal {
+    max-height: 88dvh;
+    border-bottom-right-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+
+  #modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }}/* ------------------------------------------------ painel de ajustes inline */
+
+.config-toggle {
+  align-self: center;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-decoration: underline;
+  text-transform: uppercase;
+  transition: color 0.2s ease;
+}
+
+.config-toggle:hover {
+  color: var(--ink);
+}
+
+.timer-mini .config-toggle {
+  padding: 4px 8px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+.timer-config {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 4px;
+  padding: 18px;
+  border: 1px solid var(--glass-line);
+  border-radius: 20px;
+  background: var(--glass);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  text-align: left;
+  animation: panelIn 0.28s ease;
+}
+
+.timer-config-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.config-close {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  place-items: center;
+  border: 1px solid var(--glass-line);
+  border-radius: 50%;
+  background: var(--glass-strong);
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.config-close:hover {
+  color: var(--ink);
+}/* Um secundario aberto ocupa a faixa inteira: no espaco de uma coluna os
+   campos ficariam espremidos a ponto de nao dar para usar. */
+
+.timer-mini:has(> .timer-config:not([hidden])) {
+  grid-column: 1 / -1;
+}/* Em telas onde `:has` nao esta disponivel o painel apenas empilha dentro da
+   coluna, o que continua utilizavel. */@supports not selector(:has(*)) {
+  .timer-mini .timer-config {
+    padding: 14px;
+  }}/* ------------------------------------------------ fluxo de ajuste rapido *//* Titulo e modo dividem a linha quando ha largura; empilham quando nao ha. */
+
+.config-top {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 14px;
+}/* Cada tarefa (definir duracao, informar o ja corrido, regra de ganho) fica
+   em seu proprio cartao, com o botao principal junto do campo. Antes eles
+   corriam soltos e era preciso caçar o botao certo. */
+
+.config-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--glass-line);
+  border-radius: 16px;
+  background: var(--glass-strong);
+}
+
+.time-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.time-row .time-inputs {
+  flex: 1 1 200px;
+}
+
+.steppers {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.steppers button {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--glass-line);
+  border-radius: 10px;
+  background: var(--glass);
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-family: "Share Tech Mono", monospace;
+  font-size: 13px;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+.steppers button:hover {
+  background: var(--glass-strong);
+  color: var(--ink);
+}/* Registro rapido de consumo: "acabei de usar mais 10 minutos" e o gesto
+   real de quem controla um intervalo, e ele nao deve exigir recalcular o
+   valor absoluto no campo acima. */
+
+.spend-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border: 1px dashed var(--glass-line);
+  border-radius: 12px;
+}
+
+.spend-label {
+  color: var(--ink-faint);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}/* Extrato do saldo: duracao + ganhos - usados = disponiveis. */
+
+.cfg-ledger {
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--glass-line);
+  background: var(--glass);
+  color: var(--ink-soft);
+  font-family: "Share Tech Mono", monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.cfg-ledger[data-state="over"] {
+  border-color: rgba(255, 199, 107, 0.5);
+  color: var(--warn);
+}
+
+.clock-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border: 1px dashed var(--glass-line);
+  border-radius: 12px;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.clock-row input[type="time"] {
+  padding: 8px 10px;
+  border: 1px solid var(--glass-line);
+  border-radius: 10px;
+  background: var(--glass-strong);
+  color: var(--ink);
+  font-family: "Share Tech Mono", monospace;
+  font-size: 14px;
+}
+
+.clock-row .field-hint {
+  flex-basis: 100%;
+}/* O caminho mais comum ganha destaque: definir e ja iniciar. */
+
+.btn-go {
+  border-color: transparent !important;
+  background: linear-gradient(120deg, var(--accent), var(--accent2)) !important;
+  color: #04222c !important;
+  font-weight: 900;
+}
+
+.setter-actions {
+  flex-wrap: wrap;
+}
+
+.setter-actions .btn-set {
+  flex: 1 1 auto;
+}/* Estado desabilitado visivel. Sem isso o botao mais chamativo da tela
+   ("Aplicar e iniciar") continuava parecendo clicavel com o cronometro
+   rodando, e o clique simplesmente nao fazia nada. */
+
+.btn-set:disabled,
+.btn-go:disabled,
+.btn-danger:disabled,
+.btn-d:disabled,
+.btn-mini:disabled,
+.steppers button:disabled,
+.accrual-toggle input:disabled {
+  cursor: not-allowed;
+  filter: saturate(0.35);
+  opacity: 0.4;
+}/* Alvos de toque. O "Ajustar" tinha 20px de altura e e um dos controles mais
+   usados; no celular virava uma loteria. Minimo de 40px em tudo que se
+   clica dentro do painel. */
+
+.config-toggle {
+  min-height: 40px;
+  padding: 10px 18px;
+}
+
+.timer-mini .config-toggle {
+  min-height: 38px;
+  padding: 8px 12px;
+}
+
+.config-close {
+  width: 38px;
+  height: 38px;
+}
+
+.segmented button {
+  min-height: 42px;
+}
+
+.accrual-sentence input[type="number"],
+.clock-row input[type="time"],
+.clock-row .btn-set {
+  min-height: 40px;
+}
+
+.accrual-toggle {
+  min-height: 40px;
+}
+
+.accrual-toggle input {
+  width: 20px;
+  height: 20px;
+}/* Quem decide o empilhamento e a largura do PAINEL, nao a da janela: o painel
+   fica dentro de um bloco secundario e pode estar estreito com a janela larga.
+   Foi exatamente esse engano que deixou os campos de tempo quebrando ao meio,
+   com um ":" orfao e o SEG numa linha sozinha. */@supports (container-type: inline-size) {
+  .timer-config {
+    container-type: inline-size;
+    container-name: cfg;
+  }
+
+  @container cfg (max-width: 520px) {
+    .time-row .time-inputs {
+      flex-basis: 100%;
+    }
+
+    .time-inputs {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .time-sep {
+      display: none;
+    }
+
+    .time-input-group {
+      min-width: 0;
+    }
+
+    .time-input-group input {
+      width: 100%;
+    }
+
+    .steppers {
+      width: 100%;
+    }
+
+    .steppers button {
+      flex: 1 1 0;
+      padding: 0 6px;
+    }
+
+    .setter-actions .btn-set {
+      flex-basis: 100%;
+    }
+
+    .config-actions .btn-set,
+    .config-actions .btn-danger {
+      flex: 1 1 100%;
+    }
+  }}/* Sem suporte a container query, cai no criterio de janela. */@supports not (container-type: inline-size) {@media (max-width: 560px) {
+    .time-inputs {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .time-sep {
+      display: none;
+    }
+
+    .setter-actions .btn-set {
+      flex-basis: 100%;
+    }}}/* ------------------------------------------------------- tela de login */
+
+body.login-mode {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.login-shell {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  justify-content: center;
+}
+
+.login-card {
+  display: flex;
+  width: min(100%, 420px);
+  flex-direction: column;
+  gap: 14px;
+  padding: 28px 24px;
+  border: 1px solid var(--glass-line);
+  border-radius: 28px;
+  background: var(--glass-strong);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: var(--shadow);
+}
+
+.login-title {
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+}
+
+.login-copy {
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.login-card .field input {
+  width: 100%;
+  min-height: 44px;
+  padding: 11px 12px;
+  border: 1px solid var(--glass-line);
+  border-radius: 12px;
+  background: var(--glass);
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.login-card .field input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.login-card .btn-set {
+  min-height: 48px;
+}
+
+.login-feedback {
+  min-height: 18px;
+  color: var(--warn);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.login-card .settings-link {
+  align-self: center;
+}/* Aviso de conexao: discreto e sem empurrar o layout. Antes uma queda do
+   socket nao dava sinal nenhum - a tela simplesmente parava. */
+
+.link-status {
+  position: fixed;
+  z-index: 60;
+  bottom: 16px;
+  left: 50%;
+  padding: 9px 18px;
+  border: 1px solid var(--glass-line, rgba(169, 214, 255, 0.18));
+  border-radius: 999px;
+  background: var(--glass-strong, rgba(13, 25, 44, 0.92));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.34);
+  color: var(--warn, #ffc76b);
+  font-family: "Barlow", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  transform: translateX(-50%);
+  pointer-events: none;
+}/* Sincronizacao pelo horario: uma linha para o instante e outra para as
+   acoes, senao vira uma fileira longa que quebra feio em painel estreito. */
+
+.clock-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.clock-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.clock-line input[type="datetime-local"] {
+  min-height: 42px;
+  flex: 1 1 220px;
+  padding: 8px 12px;
+  border: 1px solid var(--glass-line);
+  border-radius: 10px;
+  background: var(--glass-strong);
+  color: var(--ink);
+  font-family: "Share Tech Mono", monospace;
+  font-size: 14px;
+}
+
+.clock-line input[type="datetime-local"]:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.clock-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.clock-actions .btn-set {
+  min-height: 44px;
+  flex: 1 1 auto;
+}
+
+@supports (container-type: inline-size) {
+  @container cfg (max-width: 520px) {
+    .clock-line input[type="datetime-local"] {
+      flex-basis: 100%;
+    }
+
+    .clock-actions .btn-set {
+      flex-basis: 100%;
+    }
+  }}/* ------------------------------------------------------------------ foco
+
+   O painel e quase todo botao, e os campos trocavam `outline` por uma
+   mudanca de cor de borda - sutil demais para dizer onde o teclado esta, e
+   nada indicava foco nos botoes. `:focus-visible` devolve um anel nitido sem
+   aparecer no clique de mouse. */
+
+.desktop-layout :focus-visible,
+.timer-config :focus-visible,
+.modal :focus-visible,
+.login-card :focus-visible {
+  outline: 2px solid var(--accent2);
+  outline-offset: 2px;
+  border-radius: 8px;
+}/* --------------------------------------------------- movimento reduzido
+
+   O painel tem brilho, flutuacao e um cronometro que pisca no fim. Para quem
+   pediu menos movimento no sistema, so o piscar sobrevive - e ele vira uma
+   troca de opacidade lenta, porque avisar que o tempo acabou e informacao,
+   nao enfeite. */@media (prefers-reduced-motion: reduce) {
+  .desktop-layout,
+  .modal,
+  .modal-overlay,
+  .badge::after,
+  body::before,
+  body::after,
+  .progress-fill,
+  .status-dot {
+    animation: none !important;
+  }
+
+  .timer-display.blink,
+  .timer-mini-time.blink {
+    animation: timerBlink 2s ease-in-out infinite;
+  }
+
+  * {
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }}/* ------------------------------------------------- semantica dos botoes
+
+   Os botoes do painel de ajustes herdavam a paleta do Start/Pause: `.btn-set`
+   dividia o gradiente verde com `.btn-start-d` e `.btn-set.secondary` dividia
+   o ambar com `.btn-pause-d`. O resultado era que TODO botao de configuracao
+   parecia a acao principal, e o ambar significava ao mesmo tempo "secundario"
+   (Salvar modelo, Agora, Mover) e "descarta" (Zerar) - deixando o Zerar mais
+   chamativo que o Aplicar ao lado dele.
+
+   A escala agora tem tres degraus e uma unica leitura:
+
+     .btn-go     acao recomendada do cartao (verde), no maximo uma por cartao
+     .btn-set    acao alternativa (vidro neutro)
+     .discard    descarta algo (vermelho discreto, sem gritar como o Remover)
+
+   O ambar volta a ser exclusivo do Pause, que e estado e nao acao. */
+
+.btn-set,
+.btn-set.secondary {
+  background:
+    linear-gradient(180deg, rgba(26, 41, 67, 0.82), rgba(10, 18, 33, 0.9)),
+    var(--glass-strong);
+  color: var(--ink);
+}
+
+.btn-set.secondary {
+  color: var(--ink-soft);
+}
+
+.btn-set:hover:not(:disabled) {
+  border-color: rgba(122, 191, 255, 0.38);
+  color: var(--ink);
+}/* Zerar/limpar: o vermelho avisa que algo e jogado fora, mas fica em contorno
+   para nao competir com o Remover, que apaga o cronometro inteiro. */
+
+.btn-set.discard {
+  border-color: rgba(255, 59, 48, 0.32);
+  background:
+    linear-gradient(180deg, rgba(46, 16, 18, 0.82), rgba(24, 8, 10, 0.9)),
+    var(--glass-strong);
+  color: #ffc9c4;
+}
+
+.btn-set.discard:hover:not(:disabled) {
+  border-color: rgba(255, 59, 48, 0.55);
+  color: #ffe5e2;
+}/* ------------------------------------------- cartao de consumo simplificado
+
+   Calcular pelo horario de inicio e uma tarefa diferente de registrar consumo,
+   e ficava aberta o tempo todo competindo com o caminho principal. Vira uma
+   secao que so abre quando pedida. */
+
+.clock-details {
+  margin-top: 2px;
+  border: 1px dashed var(--glass-line);
+  border-radius: 12px;
+  background: rgba(8, 16, 29, 0.42);
+}
+
+.clock-details > summary {
+  padding: 9px 12px;
+  color: var(--ink-faint);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  list-style: none;
+}
+
+.clock-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.clock-details > summary::before {
+  content: "+ ";
+  color: var(--accent2);
+  font-weight: 900;
+}
+
+.clock-details[open] > summary::before {
+  content: "− ";
+}
+
+.clock-details > summary:hover {
+  color: var(--ink-soft);
+}
+
+.clock-details[open] > summary {
+  border-bottom: 1px dashed var(--glass-line);
+  color: var(--ink-soft);
+}
+
+.clock-details > *:not(summary) {
+  margin: 10px 12px;
+}/* O extrato e a resposta que o cartao existe para dar ("quanto me resta"),
+   entao para de parecer uma nota de rodape. */
+
+.cfg-ledger {
+  border-color: rgba(88, 234, 208, 0.28);
+  color: var(--ink);
+  font-size: 13px;
 }

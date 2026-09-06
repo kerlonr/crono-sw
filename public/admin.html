@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description"
-    content="Controle uma sess&#227;o do Cron&#244;metro Sync com presets, tela cheia e viewer sincronizado em tempo real." />
+    content="Controle v&#225;rios cron&#244;metros de uma sess&#227;o do Cron&#244;metro Sync na mesma tela, com viewer sincronizado em tempo real." />
   <meta name="theme-color" content="#040812" />
   <meta name="application-name" content="Cron&#244;metro Sync" />
   <link rel="canonical" href="__CANONICAL_URL__" />
@@ -17,7 +17,7 @@
   <meta property="og:site_name" content="Cron&#244;metro Sync" />
   <meta property="og:title" content="Cron&#244;metro Sync - Admin" />
   <meta property="og:description"
-    content="Painel de controle para iniciar, pausar, resetar e compartilhar o cron&#244;metro em tempo real." />
+    content="Painel para iniciar, pausar, resetar e compartilhar v&#225;rios cron&#244;metros em tempo real." />
   <meta property="og:url" content="__CANONICAL_URL__" />
   <meta property="og:image" content="__OG_IMAGE_URL__" />
   <meta property="og:image:secure_url" content="__OG_IMAGE_URL__" />
@@ -27,28 +27,59 @@
   <meta property="og:image:alt" content="&#205;cone do Cron&#244;metro Sync" />
   <meta name="twitter:card" content="summary" />
   <meta name="twitter:title" content="Cron&#244;metro Sync - Admin" />
-  <meta name="twitter:description"
-    content="Controle uma sess&#227;o sincronizada em tempo real." />
+  <meta name="twitter:description" content="Controle v&#225;rios cron&#244;metros sincronizados em tempo real." />
   <meta name="twitter:image" content="__OG_IMAGE_URL__" />
   <title>Cronômetro - Admin</title>
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;600;900&display=swap"
     rel="stylesheet" />
   <script src="/socket.io/socket.io.js"></script>
-  <link rel="stylesheet" href="/assets/css/admin.css?v=20260429e" />
+  <link rel="stylesheet" href="/assets/css/admin.css?v=20260906c" />
 </head>
 
 <body>
+  <div class="link-status" id="link-status" hidden aria-live="polite"></div>
+
+  <div class="login-shell" id="login-shell" hidden>
+    <!-- method="post": se o JS falhar, um envio nativo nao pode levar a senha
+         para a query string, que ficaria no historico e nos logs de acesso. -->
+    <form class="login-card" id="login-form" method="post" autocomplete="on">
+      <span class="badge">Acesso do admin</span>
+      <h1 class="login-title">Entrar na sessão</h1>
+      <p class="login-copy" id="login-copy">
+        Informe o usuário e a senha definidos ao criar o cronômetro.
+      </p>
+
+      <label class="field">
+        <span class="field-label">Usuário</span>
+        <input type="text" id="login-user" name="username" autocomplete="username" maxlength="32"
+          autocapitalize="none" spellcheck="false" required />
+      </label>
+
+      <label class="field">
+        <span class="field-label">Senha</span>
+        <input type="password" id="login-pass" name="password" autocomplete="current-password"
+          maxlength="200" required />
+      </label>
+
+      <button class="btn-set btn-go" id="btn-login" type="submit">Entrar</button>
+      <p class="login-feedback" id="login-feedback" aria-live="polite"></p>
+      <a class="settings-link shortcut-link" href="/overview">Ver sessões ativas</a>
+    </form>
+  </div>
+
   <div id="admin-panel">
     <div class="desktop-layout" id="desktop-layout">
       <span class="badge">Admin Control</span>
 
       <div class="desktop-presets-bar">
-        <span class="desktop-presets-label">Presets</span>
-        <div class="desktop-presets-chips" id="desktop-presets-chips">
-          <span class="presets-empty-d">Adicione nas configurações</span>
+        <span class="desktop-presets-label">Modelos</span>
+        <div class="desktop-presets-chips" id="models-chips">
+          <span class="presets-empty-d">Salve um cronômetro como modelo nas configurações</span>
         </div>
         <div class="desktop-presets-actions">
-          <button class="btn-icon-d" id="btn-fs-d" type="button" title="Tela cheia"
+          <button class="btn-icon-d" id="btn-add-timer" type="button" title="Adicionar cronômetro"
+            aria-label="Adicionar cronômetro">+</button>
+          <button class="btn-icon-d" id="btn-fs" type="button" title="Tela cheia"
             aria-label="Alternar tela cheia">FS</button>
           <button class="btn-icon-d" id="btn-open-modal" type="button" title="Configurações"
             aria-label="Abrir configurações">
@@ -61,184 +92,270 @@
         </div>
       </div>
 
-      <div class="modal-overlay" id="modal-overlay">
-        <div class="modal" id="modal">
-          <div class="modal-header">
-            <div class="modal-title">Configurações</div>
-            <button class="btn-close-modal" id="btn-close-modal" type="button" aria-label="Fechar modal">X</button>
-          </div>
-          <div class="modal-grid">
-            <div class="modal-col modal-col-time">
-              <div class="section-label">Definir tempo</div>
-              <div class="time-inputs">
-                <div class="time-input-group">
-                  <label for="d-input-h">h</label>
-                  <input type="number" id="d-input-h" min="0" max="23" value="0" />
-                </div>
-                <div class="time-sep">:</div>
-                <div class="time-input-group">
-                  <label for="d-input-m">min</label>
-                  <input type="number" id="d-input-m" min="0" max="59" value="5" />
-                </div>
-                <div class="time-sep">:</div>
-                <div class="time-input-group">
-                  <label for="d-input-s">seg</label>
-                  <input type="number" id="d-input-s" min="0" max="59" value="0" />
-                </div>
-              </div>
-              <div class="setter-actions">
-                <button class="btn-set" id="btn-d-apply" type="button">Aplicar</button>
-                <button class="btn-set secondary" id="btn-d-save-preset" type="button">Salvar preset</button>
-              </div>
-            </div>
-            <div class="modal-col modal-col-manage">
-              <div>
-                <div class="section-label">Gerenciar presets</div>
-                <div class="presets-panel-copy">Salve o tempo atual com um nome direto nesta tela.</div>
-              </div>
-              <div class="presets-manage-list" id="d-presets-manage"></div>
-              <div class="add-preset-row">
-                <div class="preset-name-stack">
-                  <input type="text" id="d-preset-name" placeholder="Nome do preset" maxlength="24"
-                    aria-describedby="d-preset-feedback" />
-                  <div class="preset-inline-feedback" id="d-preset-feedback" aria-live="polite"></div>
-                </div>
-                <button class="btn-add-preset" id="btn-d-add-preset" type="button">+ Adicionar</button>
-              </div>
-            </div>
-            <div class="modal-col modal-col-overview settings-shortcuts">
-              <div class="section-label">Visão geral</div>
-              <a class="settings-link shortcut-link" href="/overview" target="_blank" rel="noopener noreferrer">Ver
-                sessões ativas</a>
-            </div>
-          </div>
+      <div class="primary-block" id="primary-block">
+        <div class="primary-name" id="primary-name">Cronômetro</div>
+        <div class="timer-display timer-display-d" id="primary-time">00:00:00</div>
+        <div class="primary-meta" id="primary-meta"></div>
+        <div class="progress-wrap">
+          <div class="progress-fill" id="primary-progress"></div>
         </div>
+        <div class="status-row">
+          <div class="status-dot" id="primary-dot"></div>
+          <span id="primary-status">PARADO</span>
+        </div>
+        <div class="controls-d">
+          <button class="btn-d btn-start-d" id="primary-start" type="button" data-action="start">Start</button>
+          <button class="btn-d btn-pause-d" id="primary-pause" type="button" data-action="pause" disabled>Pause</button>
+          <button class="btn-d btn-reset-d" id="primary-reset" type="button" data-action="reset">Reset</button>
+        </div>
+        <button class="config-toggle" type="button" data-action="config" aria-expanded="false">Ajustar</button>
       </div>
 
-      <div class="timer-display timer-display-d" id="d-timer">00:00:00</div>
-      <div class="progress-wrap">
-        <div class="progress-fill" id="d-progress"></div>
-      </div>
-      <div class="status-row">
-        <div class="status-dot" id="d-status-dot"></div>
-        <span id="d-status-text">PARADO</span>
-      </div>
-      <div class="controls-d">
-        <button class="btn-d btn-start-d" id="d-btn-start" type="button">Start</button>
-        <button class="btn-d btn-pause-d" id="d-btn-pause" type="button" disabled>Pause</button>
-        <button class="btn-d btn-reset-d" id="d-btn-reset" type="button">Reset</button>
-      </div>
+      <div class="timer-strip" id="timer-strip"></div>
+
+      <p class="board-empty" id="board-empty" hidden>
+        Nenhum cronômetro nesta sessão. Use <strong>+</strong> na barra acima para criar o primeiro.
+      </p>
+
+      <p class="board-feedback" id="board-feedback" aria-live="polite"></p>
+
       <div class="viewer-link-d">
         <a class="viewer-direct-link shortcut-link" href="/viewer.html" target="_blank" rel="noopener noreferrer">Abrir
           viewer</a>
       </div>
+    </div>
+  </div>
 
+  <div class="timer-config" id="timer-config" hidden>
+    <div class="timer-config-head">
+      <span class="section-label" id="timer-config-title">Ajustes</span>
+      <button class="config-close" id="btn-close-config" type="button" aria-label="Fechar ajustes">✕</button>
     </div>
 
-    <div class="mobile-layout" id="mobile-layout">
-      <div class="topbar">
-        <div class="topbar-title">Pitch Timer</div>
-        <div class="topbar-actions">
-          <button class="btn-icon-m" id="btn-fs-m" type="button" title="Tela cheia"
-            aria-label="Alternar tela cheia">FS</button>
-          <button class="btn-icon-m" id="btn-open-drawer" type="button" aria-label="Abrir configurações">
-            <svg class="btn-icon-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path
-                d="M10.2 2.7h3.6l.55 2.22c.45.15.88.33 1.28.53l1.95-1.15 2.55 2.55-1.15 1.95c.2.4.38.83.53 1.28l2.22.55v3.6l-2.22.55c-.15.45-.33.88-.53 1.28l1.15 1.95-2.55 2.55-1.95-1.15c-.4.2-.83.38-1.28.53l-.55 2.22h-3.6l-.55-2.22a8.22 8.22 0 0 1-1.28-.53l-1.95 1.15-2.55-2.55 1.15-1.95a8.22 8.22 0 0 1-.53-1.28l-2.22-.55v-3.6l2.22-.55c.15-.45.33-.88.53-1.28L4.27 6.82l2.55-2.55 1.95 1.15c.4-.2.83-.38 1.28-.53z" />
-              <circle cx="12" cy="12" r="3.25" />
-            </svg>
-          </button>
+    <div class="config-top">
+      <label class="field">
+        <span class="field-label">Título</span>
+        <input type="text" id="cfg-name" maxlength="24" placeholder="Ex.: Aula, Break, Decorrido" />
+      </label>
+
+      <div class="field">
+        <span class="field-label">Modo</span>
+        <div class="segmented" role="group" aria-label="Modo de contagem">
+          <button type="button" data-direction="down" aria-pressed="true">Regressivo</button>
+          <button type="button" data-direction="up" aria-pressed="false">Progressivo</button>
         </div>
       </div>
-      <div class="mobile-main">
-        <div class="presets-scroll-m" id="m-presets-scroll">
-          <span class="presets-empty-m">Adicione presets nas configurações</span>
+    </div>
+    <span class="field-hint" id="cfg-direction-hint"></span>
+
+    <section class="config-card">
+      <span class="field-label" id="cfg-time-label">Duração</span>
+      <div class="time-row">
+        <div class="time-inputs">
+          <div class="time-input-group">
+            <label for="cfg-h">h</label>
+            <input type="number" id="cfg-h" min="0" max="100" value="0" inputmode="numeric" />
+          </div>
+          <div class="time-sep">:</div>
+          <div class="time-input-group">
+            <label for="cfg-m">min</label>
+            <input type="number" id="cfg-m" min="0" max="59" value="5" inputmode="numeric" />
+          </div>
+          <div class="time-sep">:</div>
+          <div class="time-input-group">
+            <label for="cfg-s">seg</label>
+            <input type="number" id="cfg-s" min="0" max="59" value="0" inputmode="numeric" />
+          </div>
         </div>
-        <div class="timer-display timer-display-m" id="m-timer">00:00:00</div>
-        <div class="progress-wrap">
-          <div class="progress-fill" id="m-progress"></div>
+        <div class="steppers" role="group" aria-label="Ajuste rápido da duração">
+          <button type="button" data-step="-3600000">−1h</button>
+          <button type="button" data-step="-300000">−5m</button>
+          <button type="button" data-step="300000">+5m</button>
+          <button type="button" data-step="3600000">+1h</button>
         </div>
-        <div class="status-row">
-          <div class="status-dot" id="m-status-dot"></div>
-          <span id="m-status-text">PARADO</span>
+      </div>
+      <div class="setter-actions">
+        <button class="btn-set btn-go" id="btn-apply-start" type="button">Aplicar e iniciar</button>
+        <button class="btn-set" id="btn-apply-time" type="button">Só aplicar</button>
+        <button class="btn-set secondary" id="btn-save-model" type="button">Salvar modelo</button>
+      </div>
+      <span class="field-hint" id="cfg-time-hint"></span>
+    </section>
+
+    <section class="config-card">
+      <span class="field-label" id="cfg-offset-label">Já decorrido</span>
+
+      <!-- O gesto mais comum primeiro e aplicando na hora. Antes havia DUAS
+           fileiras quase iguais: steppers que so editavam o campo e estes, que
+           aplicam - a mesma aparencia para semanticas diferentes. Ficou so a
+           que resolve a tarefa; o valor exato continua no campo abaixo. -->
+      <div class="spend-row" id="cfg-spend-row">
+        <span class="spend-label">Acabei de usar</span>
+        <div class="steppers" role="group" aria-label="Registrar consumo agora">
+          <button type="button" data-spend-step="300000">+5m</button>
+          <button type="button" data-spend-step="600000">+10m</button>
+          <button type="button" data-spend-step="900000">+15m</button>
+          <button type="button" data-spend-step="-300000">−5m</button>
         </div>
-        <div class="controls-m">
-          <button class="btn-m btn-start-m" id="m-btn-start" type="button">Start</button>
-          <button class="btn-m btn-pause-m" id="m-btn-pause" type="button" disabled>Pause</button>
-          <button class="btn-m btn-reset-m" id="m-btn-reset" type="button">Reset</button>
+      </div>
+
+      <div class="time-row">
+        <div class="time-inputs">
+          <div class="time-input-group">
+            <label for="cfg-off-h">h</label>
+            <input type="number" id="cfg-off-h" min="0" max="100" value="0" inputmode="numeric" />
+          </div>
+          <div class="time-sep">:</div>
+          <div class="time-input-group">
+            <label for="cfg-off-m">min</label>
+            <input type="number" id="cfg-off-m" min="0" max="59" value="0" inputmode="numeric" />
+          </div>
+          <div class="time-sep">:</div>
+          <div class="time-input-group">
+            <label for="cfg-off-s">seg</label>
+            <input type="number" id="cfg-off-s" min="0" max="59" value="0" inputmode="numeric" />
+          </div>
         </div>
-        <div class="viewer-link-m">
-          <a class="viewer-direct-link shortcut-link" href="/viewer.html" target="_blank"
-            rel="noopener noreferrer">Abrir viewer</a>
+      </div>
+
+      <!-- Rotulos proprios: com "Aplicar e iniciar"/"So aplicar" nos dois
+           cartoes, os botoes ficavam indistinguiveis fora de contexto. -->
+      <div class="setter-actions">
+        <button class="btn-set btn-go" id="btn-offset-start" type="button">Registrar e iniciar</button>
+        <button class="btn-set" id="btn-apply-offset" type="button">Só registrar</button>
+        <button class="btn-set discard" id="btn-clear-offset" type="button">Zerar</button>
+      </div>
+      <span class="field-hint" id="cfg-offset-hint"></span>
+      <p class="cfg-ledger" id="cfg-ledger" data-state="ok" hidden></p>
+
+      <!-- Calcular pelo horario de inicio e outra tarefa (sincronizar uma aula
+           que ja comecou), nao a de registrar consumo. Fechado por padrao para
+           nao competir com o caminho principal. -->
+      <details class="clock-details" id="clock-row">
+        <summary>Calcular pelo horário de início</summary>
+        <div class="clock-line">
+          <span id="clock-label">Começou em</span>
+          <input type="datetime-local" id="cfg-clock" step="1"
+            aria-label="Data e hora em que o cronômetro começou" />
+          <button class="btn-set secondary" id="btn-clock-now" type="button">Agora</button>
+        </div>
+        <div class="clock-actions">
+          <button class="btn-set btn-go" id="btn-clock-sync" type="button">Sincronizar e iniciar</button>
+          <button class="btn-set" id="btn-from-clock" type="button">Só calcular</button>
+        </div>
+        <span class="field-hint" id="clock-hint"></span>
+      </details>
+    </section>
+
+    <section class="config-card">
+      <label class="accrual-toggle">
+        <input type="checkbox" id="accrual-enabled" />
+        <span>Ganhar tempo conforme outro cronômetro avança</span>
+      </label>
+      <div class="accrual-sentence" id="accrual-sentence" data-enabled="false">
+        <span>A cada</span>
+        <input type="number" id="accrual-every-h" min="0" max="99" value="1" inputmode="numeric"
+          aria-label="Horas do intervalo da regra" />
+        <span>h</span>
+        <input type="number" id="accrual-every-m" min="0" max="59" value="0" inputmode="numeric"
+          aria-label="Minutos do intervalo da regra" />
+        <span>min de</span>
+        <select id="accrual-source" aria-label="Cronômetro que dispara a regra"></select>
+        <span>, somar</span>
+        <input type="number" id="accrual-add-m" min="0" max="599" value="5" inputmode="numeric"
+          aria-label="Minutos a somar" />
+        <span>min</span>
+      </div>
+      <span class="accrual-status" id="accrual-status"></span>
+    </section>
+
+    <div class="config-actions">
+      <button class="btn-set" id="btn-set-primary" type="button">Destacar no viewer</button>
+      <button class="btn-set secondary" id="btn-move-up" type="button">Mover ↑</button>
+      <button class="btn-set secondary" id="btn-move-down" type="button">Mover ↓</button>
+      <button class="btn-danger" id="btn-remove-timer" type="button">Remover</button>
+    </div>
+  </div>
+
+
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-header">
+        <div class="modal-title" id="modal-title">Configurações</div>
+        <button class="btn-close-modal" id="btn-close-modal" type="button" aria-label="Fechar modal">X</button>
+      </div>
+
+      <div class="config-grid">
+        <div class="config-column">
+          <div class="section-label">Modelos salvos</div>
+          <div class="presets-panel-copy">
+            Um modelo guarda título, tempo e modo. Fica neste navegador e serve para qualquer sessão.
+          </div>
+          <div class="presets-manage-list" id="models-manage"></div>
         </div>
 
+        <div class="config-column">
+          <div class="section-label">Acesso do admin</div>
+          <div class="presets-panel-copy">
+            Com usuário e senha você recupera o controle desta sessão sem depender do link.
+          </div>
+          <label class="field">
+            <span class="field-label">Usuário</span>
+            <input type="text" id="auth-user" maxlength="32" autocapitalize="none" spellcheck="false"
+              autocomplete="off" />
+          </label>
+          <label class="field">
+            <span class="field-label">Nova senha</span>
+            <input type="password" id="auth-pass" maxlength="200" autocomplete="new-password"
+              placeholder="deixe em branco para não alterar" />
+          </label>
+          <div class="setter-actions">
+            <button class="btn-set" id="btn-save-auth" type="button">Salvar acesso</button>
+            <button class="btn-set secondary" id="btn-clear-auth" type="button">Remover</button>
+          </div>
+          <p class="field-hint" id="auth-feedback" aria-live="polite"></p>
+        </div>
+
+        <div class="config-column settings-shortcuts">
+          <div class="section-label">Visão geral</div>
+          <a class="settings-link shortcut-link" href="/overview" target="_blank" rel="noopener noreferrer">Ver sessões
+            ativas</a>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- <div class="sp-embed-layer" aria-label="Playlist Spotify em segundo plano">
-    <div class="sp-embed-frame-wrap">
-      <iframe class="sp-embed-frame" title="Spotify playlist"
-        src="https://open.spotify.com/embed/playlist/6PkY4E7GqTWaJ3w1uaPyxV?utm_source=generator&theme=0" width="100%"
-        height="152" frameborder="0" allowfullscreen
-        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
-    </div>
-  </div> -->
-
-  <div class="drawer-overlay" id="drawer-overlay"></div>
-  <div class="drawer" id="drawer">
-    <div class="drawer-handle"></div>
-    <div class="drawer-header">
-      <div class="drawer-title">Configurações</div>
-      <button class="btn-close-drawer" id="btn-close-drawer" type="button" aria-label="Fechar painel">X</button>
-    </div>
-
-    <div class="drawer-section drawer-section-time">
-      <div class="drawer-section-label">Definir tempo</div>
-      <div class="time-inputs-m">
-        <div class="time-input-group-m">
-          <label for="m-input-h">h</label>
-          <input type="number" id="m-input-h" min="0" max="23" value="0" inputmode="numeric" />
-        </div>
-        <div class="time-sep-m">:</div>
-        <div class="time-input-group-m">
-          <label for="m-input-m">min</label>
-          <input type="number" id="m-input-m" min="0" max="59" value="5" inputmode="numeric" />
-        </div>
-        <div class="time-sep-m">:</div>
-        <div class="time-input-group-m">
-          <label for="m-input-s">seg</label>
-          <input type="number" id="m-input-s" min="0" max="59" value="0" inputmode="numeric" />
-        </div>
+  <template id="timer-mini-template">
+    <article class="timer-mini">
+      <div class="timer-mini-head">
+        <span class="timer-mini-dot"></span>
+        <span class="timer-mini-name"></span>
       </div>
-      <div class="drawer-actions">
-        <button class="btn-drawer-action" id="btn-m-apply" type="button">Aplicar</button>
-        <button class="btn-drawer-action sec" id="btn-m-save-preset" type="button">Salvar preset</button>
+      <div class="timer-mini-time green">00:00:00</div>
+      <div class="timer-mini-meta"></div>
+      <div class="progress-wrap">
+        <div class="progress-fill"></div>
       </div>
-    </div>
-
-    <div class="drawer-section drawer-section-manage">
-      <div class="drawer-section-label">Gerenciar presets</div>
-      <div class="presets-list-m" id="m-presets-manage"></div>
-      <div class="add-preset-row-m">
-        <div class="preset-name-stack">
-          <input type="text" id="m-preset-name" placeholder="Nome do preset" maxlength="24"
-            aria-describedby="m-preset-feedback" />
-          <div class="preset-inline-feedback" id="m-preset-feedback" aria-live="polite"></div>
-        </div>
-        <button class="btn-add-m" id="btn-m-add-preset" type="button">+ Adicionar</button>
+      <div class="timer-mini-controls">
+        <button class="btn-mini btn-mini-start" type="button" data-action="start">Start</button>
+        <button class="btn-mini btn-mini-pause" type="button" data-action="pause">Pause</button>
+        <button class="btn-mini" type="button" data-action="reset">Reset</button>
       </div>
-    </div>
-    <div class="drawer-section drawer-section-overview">
-      <div class="drawer-section-label">Visão geral</div>
-      <a class="settings-link shortcut-link mobile" href="/overview" target="_blank" rel="noopener noreferrer">Ver
-        sessões ativas</a>
-    </div>
-  </div>
+      <button class="config-toggle" type="button" data-action="config" aria-expanded="false">Ajustar</button>
+    </article>
+  </template>
 
-  <script src="/assets/js/crono-utils.js?v=20260612a"></script>
+  <template id="config-item-template">
+    <button class="config-item" type="button" aria-selected="false">
+      <span class="config-item-star" hidden>★</span>
+      <span class="config-item-name"></span>
+      <span class="config-item-time"></span>
+    </button>
+  </template>
+
+  <script src="/assets/js/crono-utils.js?v=20260906a"></script>
   <script src="/assets/js/finish-sound.js?v=20260429b"></script>
-  <script src="/assets/js/admin.js?v=20260612a"></script>
+  <script src="/assets/js/admin.js?v=20260906c"></script>
 </body>
 
 </html>

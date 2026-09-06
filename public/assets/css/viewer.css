@@ -10,11 +10,19 @@
   --bg-top: #040812;
   --bg-bottom: #091321;
   --ink: #eef6ff;
+  --ink-soft: rgba(238, 246, 255, 0.62);
   --glass: rgba(8, 16, 30, 0.72);
   --line: rgba(169, 214, 255, 0.18);
+  --track: rgba(169, 214, 255, 0.14);
   --accent: #58ead0;
   --warn: #ffc76b;
   --danger: #ff3b30;
+}
+
+/* `display` vindo de uma classe vence a regra `[hidden]` do navegador,
+   entao o atributo precisa de reforco para continuar escondendo. */
+[hidden] {
+  display: none !important;
 }
 
 body {
@@ -101,56 +109,303 @@ body.finished {
   text-align: center;
 }
 
-.timer-display {
+/* ------------------------------------------------------------------ board */
+
+.viewer-board {
+  container-type: inline-size;
+  container-name: board;
   position: relative;
   z-index: 10;
-  padding: 34px 42px;
+  display: flex;
+  flex-direction: column;
+  /* O conjunto fica centrado na tela. Antes o destaque esticava para ocupar
+     toda a sobra e empurrava os secundarios para a borda de baixo, deixando
+     um vazio grande no meio. */
+  justify-content: center;
+  gap: clamp(10px, 2vh, 26px);
+  width: 100%;
+  height: 100dvh;
+  padding: clamp(10px, 2vh, 30px);
+}
+
+.viewer-waiting {
+  margin: auto;
+  color: var(--ink-soft);
+}
+
+/* O destaque cresce ate um teto, e o que sobra e dividido em cima e embaixo
+   pelo `justify-content: center` do board. `flex-basis: 0` evita que o
+   tamanho do proprio texto influencie a divisao. */
+.viewer-primary {
+  display: flex;
+  flex: 1 1 0%;
+  /* Teto justo: com o bloco muito mais alto que o conteudo, a sobra
+     centrava por dentro tambem e abria um vao entre a legenda e os
+     secundarios. */
+  max-height: 44dvh;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(4px, 1.2vh, 16px);
+}
+
+.viewer-primary-head {
+  display: flex;
+  align-items: center;
+  gap: clamp(8px, 1.4vw, 16px);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* Estado escrito, para nao depender so da opacidade. */
+.viewer-state {
+  padding: 5px 14px;
+  border: 1px solid rgba(255, 199, 107, 0.42);
+  border-radius: 999px;
+  background: rgba(255, 199, 107, 0.14);
+  color: var(--warn);
+  font-family: "Barlow", sans-serif;
+  font-size: clamp(10px, 1.2vw, 14px);
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.viewer-state[data-status="finished"] {
+  border-color: rgba(255, 59, 48, 0.45);
+  background: rgba(255, 59, 48, 0.16);
+  color: var(--danger);
+}
+
+.viewer-state[data-status="stopped"] {
+  border-color: var(--line);
+  background: rgba(169, 214, 255, 0.1);
+  color: var(--ink-soft);
+}
+
+.viewer-primary-label {
+  color: var(--ink-soft);
+  font-family: "Barlow", sans-serif;
+  font-size: clamp(13px, min(3vw, 3.2vh), 30px);
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  line-height: 1.2;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.viewer-primary-meta {
+  color: rgba(238, 246, 255, 0.42);
+  font-family: "Barlow", sans-serif;
+  font-size: clamp(11px, min(1.6vw, 2vh), 18px);
+  letter-spacing: 0.1em;
+  text-align: center;
+}
+
+.viewer-primary-bar {
+  width: 100%;
+  height: 5px;
+  opacity: 0.9;
+}
+
+/* A moldura vive no involucro, nao no texto: assim a barra de progresso cabe
+   dentro da bolha, logo abaixo dos digitos, em vez de atravessar a tela. */
+.viewer-frame {
+  display: flex;
+  max-width: 100%;
+  flex-direction: column;
+  align-items: stretch;
+  gap: clamp(10px, 1.6vh, 18px);
+  padding: clamp(16px, 3vh, 32px) clamp(20px, 4vw, 40px)
+    clamp(12px, 2vh, 22px);
   border: 1px solid var(--line);
-  border-radius: 34px;
+  border-radius: clamp(20px, 3vw, 34px);
   background:
     linear-gradient(180deg, rgba(23, 38, 64, 0.78), rgba(8, 16, 30, 0.84)),
     var(--glass);
   backdrop-filter: blur(26px);
   -webkit-backdrop-filter: blur(26px);
   box-shadow: 0 28px 70px rgba(0, 0, 0, 0.34);
+}
+
+.timer-display {
+  text-align: center;
   color: var(--ink);
   font-family: "Share Tech Mono", monospace;
-  font-size: clamp(96px, 21vw, 270px);
+  font-size: clamp(40px, min(13.5vw, 34vh), 220px);
+  font-variant-numeric: tabular-nums;
   letter-spacing: 0.04em;
   line-height: 1;
   text-shadow: 0 0 26px rgba(122, 191, 255, 0.12);
   transition:
     color 0.45s ease,
     text-shadow 0.45s ease,
-    opacity 0.3s ease,
-    background 0.4s ease;
+    opacity 0.3s ease;
   user-select: none;
 }
 
-.timer-display.green {
+/* Com container queries o destaque passa a medir o espaco que realmente sobrou
+   para ele, em vez de chutar pela viewport: quanto mais cards secundarios
+   entram, menor ele fica, sem transbordar. */
+@supports (container-type: size) {
+  .viewer-primary {
+    container-type: size;
+  }
+
+  .timer-display {
+    /* 13.5cqw deixa os digitos em ~72% da largura do bloco. Antes eram
+       16cqw, que dava 83-93% - dai a sensacao de grande demais, quase
+       encostando nas bordas. */
+    font-size: clamp(40px, min(13.5cqw, 48cqh), 220px);
+  }
+}
+
+/* ------------------------------------------------------------ secundarios */
+
+.viewer-secondaries {
+  /* `cqw` aqui resolve contra o board. Como o destaque tambem se mede pela
+     largura do bloco, os dois crescem juntos e o principal continua sendo o
+     maior em qualquer largura - antes o secundario tinha teto proprio e
+     ficava desproporcional. */
+  font-size: clamp(26px, 8cqw, 76px);
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: clamp(8px, 1.2vw, 18px);
+  max-height: 46dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.viewer-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(4px, 0.9vh, 10px);
+  padding: clamp(10px, 1.6vh, 22px) clamp(12px, 1.4vw, 26px);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(23, 38, 64, 0.7), rgba(8, 16, 30, 0.8)),
+    var(--glass);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.28);
+}
+
+.viewer-card-label {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-family: "Barlow", sans-serif;
+  font-size: clamp(11px, 0.22em, 17px);
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-align: center;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.viewer-card-time {
+  color: var(--ink);
+  font-family: "Share Tech Mono", monospace;
+  font-size: min(1em, 20cqi);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  transition:
+    color 0.4s ease,
+    opacity 0.3s ease;
+}
+
+@supports (container-type: inline-size) {
+  .viewer-card {
+    container-type: inline-size;
+  }
+
+  .viewer-card-time {
+    /* `1em` vem da faixa (medida pelo board) e `20cqi` e o teto do proprio
+       card: o numero acompanha a tela, mas nunca estoura a caixa quando ha
+       muitos cronometros e cada card fica estreito. */
+    font-size: min(1em, 20cqi);
+  }
+}
+
+.viewer-card .viewer-progress {
+  width: 100%;
+}
+
+/* -------------------------------------------------------------- progresso */
+
+.viewer-progress {
+  overflow: hidden;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--track);
+}
+
+.viewer-progress-fill {
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition:
+    width 0.25s linear,
+    background 0.4s ease;
+}
+
+.viewer-progress-fill[data-phase="yellow"] {
+  background: var(--warn);
+}
+
+.viewer-progress-fill[data-phase="red"],
+.viewer-progress-fill[data-phase="blink"] {
+  background: var(--danger);
+}
+
+/* ------------------------------------------------------------------ fases */
+
+.timer-display.green,
+.viewer-card-time.green {
   color: var(--accent);
   text-shadow: 0 0 30px rgba(88, 234, 208, 0.24);
 }
 
-.timer-display.yellow {
+.timer-display.yellow,
+.viewer-card-time.yellow {
   color: var(--warn);
   text-shadow: 0 0 30px rgba(255, 199, 107, 0.24);
 }
 
-.timer-display.red {
+.timer-display.red,
+.viewer-card-time.red {
   color: var(--danger);
   text-shadow:
     0 0 26px rgba(255, 59, 48, 0.44),
     0 0 58px rgba(255, 24, 24, 0.2);
 }
 
-.timer-display.blink {
+.timer-display.blink,
+.viewer-card-time.blink {
   color: var(--danger);
   animation: timerBlink 0.56s infinite;
 }
 
-.timer-display.paused {
-  opacity: 0.5;
+/* Pausado com cor propria: a 50% de opacidade sobre um verde escuro ninguem
+   percebia que estava parado, ainda mais ao abrir a tela ja pausada. */
+.timer-display.paused,
+.viewer-card-time.paused {
+  color: #93a9c4;
+  opacity: 0.8;
+  text-shadow: none;
+}
+
+.viewer-card[data-status="paused"] {
+  border-color: rgba(147, 169, 196, 0.32);
 }
 
 @keyframes timerBlink {
@@ -164,12 +419,64 @@ body.finished {
   }
 }
 
-@media (max-width: 720px) {
-  .timer-display {
-    width: calc(100% - 24px);
-    padding: 24px 18px;
-    border-radius: 24px;
-    font-size: clamp(54px, 18vw, 118px);
-    text-align: center;
+@media (prefers-reduced-motion: reduce) {
+  .timer-display.blink,
+  .viewer-card-time.blink {
+    animation: none;
+    opacity: 0.85;
   }
+}
+
+@container board (max-width: 720px) {
+  .viewer-secondaries {
+    grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
+    max-height: 38dvh;
+  }
+
+  .viewer-card {
+    padding: 10px 12px;
+    border-radius: 18px;
+  }
+
+  /* Menos moldura em volta dos digitos: em tela estreita o padding roubava
+     a largura que o numero precisa. */
+  .timer-display {
+    padding: clamp(10px, 2vh, 18px) clamp(12px, 3vw, 22px);
+    border-radius: 20px;
+  }
+
+  .viewer-primary-bar {
+    width: min(92%, 880px);
+  }
+}
+
+@media (max-width: 720px) {
+  .viewer-board {
+    gap: 10px;
+    padding: 12px;
+  }
+}
+
+/* Aviso de conexao: discreto e sem empurrar o layout. Antes uma queda do
+   socket nao dava sinal nenhum - a tela simplesmente parava. */
+.link-status {
+  position: fixed;
+  z-index: 60;
+  bottom: 16px;
+  left: 50%;
+  padding: 9px 18px;
+  border: 1px solid var(--glass-line, rgba(169, 214, 255, 0.18));
+  border-radius: 999px;
+  background: var(--glass-strong, rgba(13, 25, 44, 0.92));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.34);
+  color: var(--warn, #ffc76b);
+  font-family: "Barlow", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  transform: translateX(-50%);
+  pointer-events: none;
 }
