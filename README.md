@@ -108,6 +108,13 @@ Cada tela possui um CSS próprio para evitar acoplamento visual excessivo:
 
 O padrão visual atual é dark glass: fundos escuros, bordas translúcidas, blur e acentos em verde/azul.
 
+Duas garantias valem para todas as telas:
+
+- **foco visível** — `:focus-visible` desenha um anel nítido em campos e botões; antes o `outline` era
+  removido e trocado por uma mudança sutil de borda, e nos botões não havia indicação nenhuma
+- **movimento reduzido** — com `prefers-reduced-motion` as animações decorativas param. O piscar do
+  cronômetro no fim sobrevive, mais lento, porque avisar que o tempo acabou é informação, não enfeite
+
 ## Requisitos
 
 - Node.js 20+
@@ -196,6 +203,23 @@ calcula o valor a partir de um horário — se o horário ainda não chegou hoje
 O ponto fica guardado à parte do decorrido, então `Reset` volta para ele, não para zero. Informar consumo
 **não** descarta o tempo ganho por regra; só o `Reset` faz isso.
 
+O consumo é guardado **cru**, sem ser limitado pelo total. Um intervalo que ganha 5 min por hora pode ter
+30 minutos gastos quando só 25 foram concedidos: o cronômetro mostra zero e os 5 minutos que sobraram
+ficam registrados como dívida, abatidos sozinhos do próximo ganho. Antes esse valor era simplesmente
+recusado — e em silêncio —, o que deixava sem saída quem só queria descontar o que já tinha usado.
+
+O extrato aparece embaixo do campo, na ordem em que a conta acontece:
+
+```text
+Base 25 min + 25 min ganhos − 30 min usados = 20 min disponíveis
+```
+
+Para o gesto mais comum — "acabei de gastar mais 10 minutos" — a linha **Acabei de usar** soma ao que já
+está registrado e aplica num clique, sem obrigar a recalcular o valor absoluto no campo.
+
+O `Reset` é o recomeço limpo: descarta o ganho e derruba o consumo para o que a duração configurada
+consegue bancar, para a rodada nova não começar já devendo.
+
 Para não precisar calcular na mão, o campo **Começou em** aceita data, hora, minuto e segundo e deduz
 sozinho quanto já correu — `Sincronizar e iniciar` aplica e dá Start num clique. A data importa porque uma
 contagem de 80 horas atravessa dias: só o horário não diria se foi hoje, ontem ou anteontem. Vale igual
@@ -243,10 +267,24 @@ continua valendo, porque o token é preservado.
 Um cronômetro pode somar tempo conforme outro avança: *a cada 1h de Aula, somar 5 min ao Break*. O tempo
 ganho fica em `bonusMs`, separado da duração configurada, e a tela mostra os dois ("25 min + 15 min ganhos").
 
-O ganho é recalculado do decorrido da fonte a cada tick, então tick perdido, atraso ou reconexão não
-duplicam nem pulam uma concessão — um salto de 4 horas concede as 4 de uma vez. Um intervalo que já tinha
-zerado volta a ficar disponível, pausado, ao ganhar tempo novo. Zerar a fonte descarta o que ela concedeu,
-para o bônus de uma rodada não somar com o da seguinte.
+O ganho é **derivado** do decorrido da fonte, nunca somado passo a passo:
+
+```text
+bonusMs = (floor(decorridoDaFonte / everyMs) − baseCount) × addMs
+```
+
+`baseCount` é a contagem de concessões em que o ganho vale zero, movida só pelo `Reset`. Como a fórmula lê
+apenas o estado atual, a operação é idempotente: tick perdido, atraso, reconexão ou reenvio da mesma regra
+chegam sempre ao mesmo número, e um salto de 4 horas concede as 4 de uma vez. A versão anterior somava ao
+valor anterior e **dobrava o bônus** toda vez que a regra era reaplicada — o que acontecia a cada campo
+mexido no painel, porque o formulário reenvia a regra inteira.
+
+Um intervalo que já tinha zerado volta a ficar disponível, pausado, ao ganhar tempo novo. Zerar a fonte
+descarta o que ela concedeu, para o bônus de uma rodada não somar com o da seguinte.
+
+Trocar a duração de um cronômetro é uma **edição**, não um recomeço: o tempo já ganho continua valendo.
+Só o `Reset` descarta o ganho. Isso importa porque o painel manda duração e consumo numa única
+atualização — antes, aplicar os dois juntos apagava os minutos acumulados.
 
 O board tem ainda `Iniciar todos`, `Pausar todos` e `Zerar todos`. Os cronômetros são independentes entre si:
 começar o intervalo não pausa os demais.
