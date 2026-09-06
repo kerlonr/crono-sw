@@ -146,11 +146,22 @@ Copy-Item .env.example .env
 npm start
 ```
 
-4. Acesse:
+4. Acesse a porta que o log indicar (`PORT` do `.env`, ou 3000 por padrão):
 
 ```text
 http://localhost:3000
 ```
+
+O `npm start` carrega o `.env` pela flag nativa `--env-file-if-exists` do Node — sem `dotenv` nem
+qualquer dependência a mais. Duas consequências que valem saber:
+
+- **sem `.env` o app sobe normalmente**, usando os padrões. É o caso do Docker, onde o `.env` está no
+  `.dockerignore` e as variáveis chegam pelo `env_file`/`environment` do Compose
+- **variável do ambiente vence o `.env`**: `PORT=3055 npm start` sobe na 3055 mesmo com `PORT=3010` no
+  arquivo, então um `.env` esquecido no disco não sobrescreve o que o Compose ou o systemd definiram
+
+A flag exige Node 20.18+ (por isso o `engines` do `package.json`). Se estiver num Node mais antigo,
+exporte as variáveis à mão: `PORT=3010 npm start`.
 
 ## Usando com Docker
 
