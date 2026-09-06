@@ -343,21 +343,14 @@
     ui.clockSync?.addEventListener("click", () => sincronizarPeloRelogio(true));
     ui.clockNow?.addEventListener("click", preencherAgora);
 
-    // Ajuste rapido: mexer nos campos de hora um a um para somar 5 minutos e
-    // o tipo de atrito que faz a tela parecer ruim de usar.
+    // Ajuste rapido da duracao: mexer nos campos de hora um a um para somar 5
+    // minutos e o tipo de atrito que faz a tela parecer ruim de usar. Aqui o
+    // passo so edita o campo - quem aplica e o botao do cartao.
     ui.config?.addEventListener("click", (event) => {
-      const passo = event.target.closest("[data-step], [data-off-step]");
+      const passo = event.target.closest("[data-step]");
       if (!passo) return;
 
-      const paraDuracao = passo.hasAttribute("data-step");
-      const delta = Number(
-        paraDuracao ? passo.dataset.step : passo.dataset.offStep,
-      );
-      const atual = paraDuracao ? readTimeMs() : readOffsetMs();
-      const alvo = Math.max(0, atual + delta);
-
-      if (paraDuracao) fillTimeInputs(alvo);
-      else fillOffsetInputs(alvo);
+      fillTimeInputs(Math.max(0, readTimeMs() + Number(passo.dataset.step)));
     });
 
     // Registro rapido: soma ao que o servidor ja tem e aplica num clique.
@@ -654,6 +647,23 @@
       (readNumber(ui.cfgH, 0, MAX_TIMER_HOURS) * 3600 +
         readNumber(ui.cfgM, 0, 59) * 60 +
         readNumber(ui.cfgS, 0, 59)) *
+      1000
+    );
+  }
+
+  /**
+   * Le o consumo digitado nos campos h/min/seg.
+   *
+   * Estava sendo chamada por "Registrar", "Registrar e iniciar" e pelos
+   * steppers sem nunca ter sido definida: cada clique morria num
+   * `ReferenceError` antes de emitir qualquer coisa, e a tela nao dava sinal
+   * nenhum - era esta a causa de o tempo ja consumido "nao ser respeitado".
+   */
+  function readOffsetMs() {
+    return (
+      (readNumber(ui.cfgOffH, 0, MAX_TIMER_HOURS) * 3600 +
+        readNumber(ui.cfgOffM, 0, 59) * 60 +
+        readNumber(ui.cfgOffS, 0, 59)) *
       1000
     );
   }

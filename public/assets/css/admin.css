@@ -162,10 +162,14 @@ body.message-mode {
       transparent 28%
     );
   pointer-events: none;
-}.badge {
+}
+
+.badge {
   position: relative;
   overflow: hidden;
-}.badge::after {
+}
+
+.badge::after {
   content: "";
   position: absolute;
   inset: -20% auto -20% -40%;
@@ -212,7 +216,9 @@ body.message-mode {
     ),
     rgba(255, 255, 255, 0.34);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
-}.desktop-presets-label,
+}
+
+.desktop-presets-label,
 .section-label,
 .modal-title {
   font-size: 10px;
@@ -229,11 +235,15 @@ body.message-mode {
   flex: 1;
   min-width: 0;
   align-items: center;
-}.desktop-presets-actions {
+}
+
+.desktop-presets-actions {
   display: flex;
   gap: 10px;
   margin-left: auto;
-}.preset-chip-d {
+}
+
+.preset-chip-d {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.8);
   border-radius: 999px;
@@ -263,11 +273,15 @@ body.message-mode {
 .preset-chip-d {
   padding: 10px 16px;
   font-size: 13px;
-}.preset-chip-d:hover {
+}
+
+.preset-chip-d:hover {
   transform: translateY(-2px);
   border-color: rgba(85, 174, 246, 0.56);
   color: var(--accent2);
-}.presets-empty-d,
+}
+
+.presets-empty-d,
 .presets-empty {
   color: var(--ink-faint);
   font-style: italic;
@@ -397,7 +411,9 @@ body.message-mode {
 .status-dot.finished {
   background: var(--danger);
   box-shadow: 0 0 12px rgba(239, 111, 143, 0.45);
-}.controls-d,
+}
+
+.controls-d,
 .viewer-link-d,
 .setter-actions {
   display: flex;
@@ -405,7 +421,9 @@ body.message-mode {
   align-items: center;
   justify-content: center;
   flex-wrap: wrap;
-}.controls-d {
+}
+
+.controls-d {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   width: 100%;
@@ -414,8 +432,9 @@ body.message-mode {
 .controls-d {
   max-width: 560px;
   margin-inline: auto;
-}.btn-d,
-.btn-m,
+}
+
+.btn-d,
 .btn-set,
 .shortcut-link {
   appearance: none;
@@ -436,20 +455,22 @@ body.message-mode {
     box-shadow 0.22s ease,
     background 0.22s ease,
     opacity 0.22s ease;
-}.btn-d:hover,
+}
+
+.btn-d:hover,
 .btn-set:hover,
 .shortcut-link:hover {
   transform: translateY(-2px);
   border-color: rgba(85, 174, 246, 0.52);
   box-shadow: 0 18px 34px rgba(67, 104, 142, 0.16);
-}.btn-d:active,
-.btn-m:active,
+}
+
+.btn-d:active,
 .btn-set:active {
   transform: translateY(0) scale(0.985);
 }
 
-.btn-d:disabled,
-.btn-m:disabled {
+.btn-d:disabled {
   opacity: 0.34;
   pointer-events: none;
 }
@@ -476,8 +497,7 @@ body.message-mode {
 }
 
 .btn-pause-d,
-.btn-set.secondary,
-.btn-drawer-action.sec {
+.btn-set.secondary {
   background:
     linear-gradient(135deg, rgba(247, 186, 82, 0.54), rgba(255, 213, 143, 0.3)),
     rgba(255, 255, 255, 0.62);
@@ -498,7 +518,9 @@ body.message-mode {
 
 .btn-reset-d:hover {
   border-color: rgba(239, 111, 143, 0.42);
-}.btn-icon-d,
+}
+
+.btn-icon-d,
 .btn-close-modal,
 .preset-del-btn {
   appearance: none;
@@ -521,7 +543,9 @@ body.message-mode {
     border-color 0.2s ease,
     color 0.2s ease;
   cursor: pointer;
-}.btn-icon-d {
+}
+
+.btn-icon-d {
   width: 46px;
   height: 46px;
   font-size: 18px;
@@ -537,22 +561,30 @@ body.message-mode {
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
-}.btn-icon-d:hover,
+}
+
+.btn-icon-d:hover,
 .btn-close-modal:hover,
 .preset-del-btn:hover {
   transform: translateY(-1px);
   border-color: rgba(85, 174, 246, 0.52);
-}.btn-close-modal:hover,
+}
+
+.btn-close-modal:hover,
 .preset-del-btn:hover {
   color: var(--danger);
-}.btn-set {
+}
+
+.btn-set {
   padding: 12px 20px;
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   cursor: pointer;
-}.shortcut-link {
+}
+
+.shortcut-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -572,11 +604,11 @@ body.message-mode {
   align-self: flex-start;
 }
 
-.shortcut-link.mobile {
-  width: 100%;
-}.settings-shortcuts {
+.settings-shortcuts {
   position: relative;
-}.presets-panel-copy {
+}
+
+.presets-panel-copy {
   color: var(--ink-soft);
   font-size: 13px;
   line-height: 1.55;
@@ -590,22 +622,30 @@ body.message-mode {
   align-items: center;
   justify-content: center;
   text-align: center;
-}.time-inputs {
+}
+
+.time-inputs {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-}.time-input-group {
+}
+
+.time-input-group {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 5px;
-}.time-input-group label {
+}
+
+.time-input-group label {
   font-size: 10px;
   letter-spacing: 0.15em;
   text-transform: uppercase;
   color: var(--ink-faint);
-}.time-input-group input {
+}
+
+.time-input-group input {
   border: 1px solid rgba(255, 255, 255, 0.76);
   background:
     linear-gradient(
@@ -622,7 +662,9 @@ body.message-mode {
     background 0.2s ease,
     box-shadow 0.2s ease,
     transform 0.2s ease;
-}.time-input-group input {
+}
+
+.time-input-group input {
   font-family: "Share Tech Mono", monospace;
   text-align: center;
 }
@@ -632,13 +674,17 @@ body.message-mode {
   padding: 12px 10px;
   border-radius: 14px;
   font-size: 22px;
-}.time-input-group input:focus {
+}
+
+.time-input-group input:focus {
   border-color: rgba(85, 174, 246, 0.56);
   box-shadow:
     0 0 0 4px rgba(85, 174, 246, 0.14),
     inset 0 1px 0 rgba(255, 255, 255, 0.92);
   transform: translateY(-1px);
-}.time-sep {
+}
+
+.time-sep {
   font-family: "Share Tech Mono", monospace;
   color: rgba(23, 50, 77, 0.36);
 }
@@ -646,7 +692,9 @@ body.message-mode {
 .time-sep {
   font-size: 24px;
   margin-top: 14px;
-}.presets-manage-list {
+}
+
+.presets-manage-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -660,7 +708,9 @@ body.message-mode {
   max-height: clamp(240px, 34dvh, 360px);
   min-height: 204px;
   overflow-y: auto;
-}.preset-manage-row {
+}
+
+.preset-manage-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -684,13 +734,19 @@ body.message-mode {
 
 .preset-manage-row {
   padding: 12px 14px;
-}.preset-manage-row:hover {
+}
+
+.preset-manage-row:hover {
   transform: translateY(-2px);
   border-color: rgba(85, 174, 246, 0.48);
-}.preset-manage-info {
+}
+
+.preset-manage-info {
   min-width: 0;
   flex: 1;
-}.preset-manage-name {
+}
+
+.preset-manage-name {
   color: var(--ink);
   font-weight: 600;
   overflow-wrap: anywhere;
@@ -699,7 +755,9 @@ body.message-mode {
 
 .preset-manage-name {
   font-size: 13px;
-}.preset-manage-time {
+}
+
+.preset-manage-time {
   margin-top: 6px;
   font-family: "Share Tech Mono", monospace;
   color: var(--ink-faint);
@@ -707,7 +765,9 @@ body.message-mode {
 
 .preset-manage-time {
   font-size: 11px;
-}.preset-del-btn {
+}
+
+.preset-del-btn {
   padding: 8px 10px;
   flex: 0 0 auto;
 }
@@ -754,7 +814,9 @@ body.message-mode {
   -webkit-backdrop-filter: blur(22px);
   box-shadow: var(--shadow);
   animation: modalIn 0.26s ease;
-}.modal-header {
+}
+
+.modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -768,38 +830,12 @@ body.message-mode {
 
 .modal-header {
   padding: 24px 28px 18px;
-}.btn-close-modal {
+}
+
+.btn-close-modal {
   width: 38px;
   height: 38px;
   font-size: 18px;
-}
-
-.modal-col-manage .presets-manage-list {
-  flex: 1;
-  max-height: none;
-}
-
-.btn-m {
-  width: 100%;
-  min-width: 0;
-  min-height: 56px;
-  padding: 0 6px;
-  font-size: 13px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  text-align: center;
-  -webkit-tap-highlight-color: transparent;
-  white-space: nowrap;
-}
-
-.drawer-overlay.open {
-  display: block;
-  animation: fadeIn 0.2s ease;
-}
-
-.drawer.open {
-  transform: translateY(0);
 }
 
 @keyframes fadeIn {
@@ -915,26 +951,32 @@ body.message-mode {
       transparent 26%
     ),
     linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
-}@media (min-width: 768px) {
+}
+
+@media (min-width: 768px) {
   .desktop-layout {
     display: flex;
-  }
-}@media (max-width: 1100px) {
+  }}
+
+@media (max-width: 1100px) {
   .modal {
     max-width: 700px;
-  }
-}@media (max-width: 980px) {
+  }}
+
+@media (max-width: 980px) {
   .desktop-presets-actions {
     width: 100%;
     justify-content: flex-end;
     margin-left: 0;
-  }
-}@media (max-width: 860px) {
+  }}
+
+@media (max-width: 860px) {
 
   .modal-header {
     padding: 20px 20px 16px;
-  }
-}@media (max-width: 767px) {
+  }}
+
+@media (max-width: 767px) {
   body {
     align-items: flex-start;
   }
@@ -945,8 +987,7 @@ body.message-mode {
 
   .modal-overlay {
     display: none !important;
-  }
-}
+  }}
 
 :root {
   --bg-top: #040812;
@@ -998,7 +1039,9 @@ body::after {
     rgba(88, 234, 208, 0.12),
     transparent 70%
   );
-}.screen-message,
+}
+
+.screen-message,
 .desktop-layout,
 .desktop-presets-bar,
 .progress-wrap,
@@ -1027,16 +1070,19 @@ body::after {
   background: rgba(12, 22, 38, 0.78);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
   color: var(--accent2);
-}.badge::after {
+}
+
+.badge::after {
   background: linear-gradient(
     90deg,
     transparent,
     rgba(255, 255, 255, 0.18),
     transparent
   );
-}.preset-chip-d,
+}
+
+.preset-chip-d,
 .btn-d,
-.btn-m,
 .btn-set,
 .shortcut-link,
 .btn-icon-d,
@@ -1048,13 +1094,17 @@ body::after {
     var(--glass-strong);
   color: var(--ink);
   box-shadow: var(--shadow-soft);
-}.preset-manage-row {
+}
+
+.preset-manage-row {
   border-color: rgba(169, 214, 255, 0.14);
   background:
     linear-gradient(180deg, rgba(21, 34, 57, 0.92), rgba(8, 16, 29, 0.96)),
     rgba(10, 18, 33, 0.88);
   box-shadow: 0 14px 28px rgba(0, 0, 0, 0.24);
-}.preset-chip-d:hover,
+}
+
+.preset-chip-d:hover,
 .btn-d:hover,
 .btn-set:hover,
 .shortcut-link:hover,
@@ -1078,8 +1128,7 @@ body::after {
 }
 
 .btn-pause-d,
-.btn-set.secondary,
-.btn-drawer-action.sec {
+.btn-set.secondary {
   background:
     linear-gradient(
       135deg,
@@ -1096,14 +1145,18 @@ body::after {
     linear-gradient(135deg, rgba(255, 59, 48, 0.28), rgba(54, 6, 6, 0.94)),
     rgba(24, 6, 6, 0.82);
   color: #ffe5e2;
-}.time-input-group input {
+}
+
+.time-input-group input {
   border-color: var(--glass-line);
   background:
     linear-gradient(180deg, rgba(19, 31, 53, 0.92), rgba(8, 16, 29, 0.96)),
     rgba(8, 16, 29, 0.88);
   color: var(--ink);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}.time-input-group input:focus {
+}
+
+.time-input-group input:focus {
   border-color: rgba(122, 191, 255, 0.42);
   box-shadow:
     0 0 0 4px rgba(122, 191, 255, 0.12),
@@ -1121,11 +1174,15 @@ body::after {
     rgba(88, 234, 208, 0.94),
     rgba(122, 191, 255, 0.94)
   );
-}.modal-overlay {
+}
+
+.modal-overlay {
   background: rgba(2, 7, 14, 0.58);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-}.modal-header,
+}
+
+.modal-header,
 .settings-shortcuts {
   border-color: rgba(169, 214, 255, 0.14);
   display: flex;
@@ -1144,19 +1201,14 @@ body::after {
 .status-dot.finished {
   background: var(--danger);
   box-shadow: 0 0 14px rgba(255, 59, 48, 0.58);
-}@media (max-width: 767px) {
+}
+
+@media (max-width: 767px) {
 
   .presets-empty {
     padding: 8px 4px;
     font-size: 12px;
-  }.shortcut-link.mobile {
-    min-height: 44px;
-    border-radius: 12px;
-  }
-}@media (max-width: 380px), (max-height: 720px) {.shortcut-link.mobile {
-    min-height: 42px;
-  }
-}/* ==========================================================================
+  }}/* ==========================================================================
    Multiplos cronometros
 
    Tudo acima deste ponto e o CSS original, preservado sem alteracao. Daqui
@@ -1674,8 +1726,7 @@ body::after {
   #modal-overlay {
     align-items: flex-end;
     padding: 0;
-  }
-}/* ------------------------------------------------ painel de ajustes inline */
+  }}/* ------------------------------------------------ painel de ajustes inline */
 
 .config-toggle {
   align-self: center;
@@ -1750,8 +1801,7 @@ body::after {
    coluna, o que continua utilizavel. */@supports not selector(:has(*)) {
   .timer-mini .timer-config {
     padding: 14px;
-  }
-}/* ------------------------------------------------ fluxo de ajuste rapido *//* Titulo e modo dividem a linha quando ha largura; empilham quando nao ha. */
+  }}/* ------------------------------------------------ fluxo de ajuste rapido *//* Titulo e modo dividem a linha quando ha largura; empilham quando nao ha. */
 
 .config-top {
   display: grid;
@@ -1983,8 +2033,7 @@ body::after {
     .config-actions .btn-danger {
       flex: 1 1 100%;
     }
-  }
-}/* Sem suporte a container query, cai no criterio de janela. */@supports not (container-type: inline-size) {@media (max-width: 560px) {
+  }}/* Sem suporte a container query, cai no criterio de janela. */@supports not (container-type: inline-size) {@media (max-width: 560px) {
     .time-inputs {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1997,8 +2046,7 @@ body::after {
 
     .setter-actions .btn-set {
       flex-basis: 100%;
-    }
-}}/* ------------------------------------------------------- tela de login */
+    }}}/* ------------------------------------------------------- tela de login */
 
 body.login-mode {
   display: flex;
@@ -2148,15 +2196,13 @@ body.login-mode {
     .clock-actions .btn-set {
       flex-basis: 100%;
     }
-  }
-}
-
-/* ------------------------------------------------------------------ foco
+  }}/* ------------------------------------------------------------------ foco
 
    O painel e quase todo botao, e os campos trocavam `outline` por uma
    mudanca de cor de borda - sutil demais para dizer onde o teclado esta, e
    nada indicava foco nos botoes. `:focus-visible` devolve um anel nitido sem
    aparecer no clique de mouse. */
+
 .desktop-layout :focus-visible,
 .timer-config :focus-visible,
 .modal :focus-visible,
@@ -2164,15 +2210,12 @@ body.login-mode {
   outline: 2px solid var(--accent2);
   outline-offset: 2px;
   border-radius: 8px;
-}
-
-/* --------------------------------------------------- movimento reduzido
+}/* --------------------------------------------------- movimento reduzido
 
    O painel tem brilho, flutuacao e um cronometro que pisca no fim. Para quem
    pediu menos movimento no sistema, so o piscar sobrevive - e ele vira uma
    troca de opacidade lenta, porque avisar que o tempo acabou e informacao,
-   nao enfeite. */
-@media (prefers-reduced-motion: reduce) {
+   nao enfeite. */@media (prefers-reduced-motion: reduce) {
   .desktop-layout,
   .modal,
   .modal-overlay,
@@ -2192,11 +2235,7 @@ body.login-mode {
   * {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
-  }
-}
-
-
-/* ------------------------------------------------- semantica dos botoes
+  }}/* ------------------------------------------------- semantica dos botoes
 
    Os botoes do painel de ajustes herdavam a paleta do Start/Pause: `.btn-set`
    dividia o gradiente verde com `.btn-start-d` e `.btn-set.secondary` dividia
@@ -2212,6 +2251,7 @@ body.login-mode {
      .discard    descarta algo (vermelho discreto, sem gritar como o Remover)
 
    O ambar volta a ser exclusivo do Pause, que e estado e nao acao. */
+
 .btn-set,
 .btn-set.secondary {
   background:
@@ -2227,10 +2267,9 @@ body.login-mode {
 .btn-set:hover:not(:disabled) {
   border-color: rgba(122, 191, 255, 0.38);
   color: var(--ink);
-}
-
-/* Zerar/limpar: o vermelho avisa que algo e jogado fora, mas fica em contorno
+}/* Zerar/limpar: o vermelho avisa que algo e jogado fora, mas fica em contorno
    para nao competir com o Remover, que apaga o cronometro inteiro. */
+
 .btn-set.discard {
   border-color: rgba(255, 59, 48, 0.32);
   background:
@@ -2242,4 +2281,59 @@ body.login-mode {
 .btn-set.discard:hover:not(:disabled) {
   border-color: rgba(255, 59, 48, 0.55);
   color: #ffe5e2;
+}/* ------------------------------------------- cartao de consumo simplificado
+
+   Calcular pelo horario de inicio e uma tarefa diferente de registrar consumo,
+   e ficava aberta o tempo todo competindo com o caminho principal. Vira uma
+   secao que so abre quando pedida. */
+
+.clock-details {
+  margin-top: 2px;
+  border: 1px dashed var(--glass-line);
+  border-radius: 12px;
+  background: rgba(8, 16, 29, 0.42);
+}
+
+.clock-details > summary {
+  padding: 9px 12px;
+  color: var(--ink-faint);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  list-style: none;
+}
+
+.clock-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.clock-details > summary::before {
+  content: "+ ";
+  color: var(--accent2);
+  font-weight: 900;
+}
+
+.clock-details[open] > summary::before {
+  content: "− ";
+}
+
+.clock-details > summary:hover {
+  color: var(--ink-soft);
+}
+
+.clock-details[open] > summary {
+  border-bottom: 1px dashed var(--glass-line);
+  color: var(--ink-soft);
+}
+
+.clock-details > *:not(summary) {
+  margin: 10px 12px;
+}/* O extrato e a resposta que o cartao existe para dar ("quanto me resta"),
+   entao para de parecer uma nota de rodape. */
+
+.cfg-ledger {
+  border-color: rgba(88, 234, 208, 0.28);
+  color: var(--ink);
+  font-size: 13px;
 }

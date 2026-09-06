@@ -215,7 +215,9 @@ Base 25 min + 25 min ganhos − 30 min usados = 20 min disponíveis
 ```
 
 Para o gesto mais comum — "acabei de gastar mais 10 minutos" — a linha **Acabei de usar** soma ao que já
-está registrado e aplica num clique, sem obrigar a recalcular o valor absoluto no campo.
+está registrado e aplica num clique, sem obrigar a recalcular o valor absoluto no campo. O campo h/min/seg
+logo abaixo continua servindo ao valor exato, e `Calcular pelo horário de início` fica recolhido, porque é
+outra tarefa (sincronizar uma contagem que já começou) e estava competindo com o caminho principal.
 
 O `Reset` é o recomeço limpo: descarta o ganho e derruba o consumo para o que a duração configurada
 consegue bancar, para a rodada nova não começar já devendo.

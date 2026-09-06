@@ -33,7 +33,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;600;900&display=swap"
     rel="stylesheet" />
   <script src="/socket.io/socket.io.js"></script>
-  <link rel="stylesheet" href="/assets/css/admin.css?v=20260906b" />
+  <link rel="stylesheet" href="/assets/css/admin.css?v=20260906c" />
 </head>
 
 <body>
@@ -184,6 +184,21 @@
 
     <section class="config-card">
       <span class="field-label" id="cfg-offset-label">Já decorrido</span>
+
+      <!-- O gesto mais comum primeiro e aplicando na hora. Antes havia DUAS
+           fileiras quase iguais: steppers que so editavam o campo e estes, que
+           aplicam - a mesma aparencia para semanticas diferentes. Ficou so a
+           que resolve a tarefa; o valor exato continua no campo abaixo. -->
+      <div class="spend-row" id="cfg-spend-row">
+        <span class="spend-label">Acabei de usar</span>
+        <div class="steppers" role="group" aria-label="Registrar consumo agora">
+          <button type="button" data-spend-step="300000">+5m</button>
+          <button type="button" data-spend-step="600000">+10m</button>
+          <button type="button" data-spend-step="900000">+15m</button>
+          <button type="button" data-spend-step="-300000">−5m</button>
+        </div>
+      </div>
+
       <div class="time-row">
         <div class="time-inputs">
           <div class="time-input-group">
@@ -201,36 +216,6 @@
             <input type="number" id="cfg-off-s" min="0" max="59" value="0" inputmode="numeric" />
           </div>
         </div>
-        <div class="steppers" role="group" aria-label="Ajuste rápido">
-          <button type="button" data-off-step="-600000">−10m</button>
-          <button type="button" data-off-step="-300000">−5m</button>
-          <button type="button" data-off-step="300000">+5m</button>
-          <button type="button" data-off-step="600000">+10m</button>
-        </div>
-      </div>
-
-      <div class="clock-row" id="clock-row">
-        <div class="clock-line">
-          <span id="clock-label">Começou em</span>
-          <input type="datetime-local" id="cfg-clock" step="1"
-            aria-label="Data e hora em que o cronômetro começou" />
-          <button class="btn-set secondary" id="btn-clock-now" type="button">Agora</button>
-        </div>
-        <div class="clock-actions">
-          <button class="btn-set btn-go" id="btn-clock-sync" type="button">Sincronizar e iniciar</button>
-          <button class="btn-set" id="btn-from-clock" type="button">Só calcular</button>
-        </div>
-        <span class="field-hint" id="clock-hint"></span>
-      </div>
-
-      <div class="spend-row" id="cfg-spend-row">
-        <span class="spend-label">Acabei de usar</span>
-        <div class="steppers" role="group" aria-label="Registrar consumo agora">
-          <button type="button" data-spend-step="300000">+5m</button>
-          <button type="button" data-spend-step="600000">+10m</button>
-          <button type="button" data-spend-step="900000">+15m</button>
-          <button type="button" data-spend-step="-300000">−5m</button>
-        </div>
       </div>
 
       <!-- Rotulos proprios: com "Aplicar e iniciar"/"So aplicar" nos dois
@@ -242,6 +227,24 @@
       </div>
       <span class="field-hint" id="cfg-offset-hint"></span>
       <p class="cfg-ledger" id="cfg-ledger" data-state="ok" hidden></p>
+
+      <!-- Calcular pelo horario de inicio e outra tarefa (sincronizar uma aula
+           que ja comecou), nao a de registrar consumo. Fechado por padrao para
+           nao competir com o caminho principal. -->
+      <details class="clock-details" id="clock-row">
+        <summary>Calcular pelo horário de início</summary>
+        <div class="clock-line">
+          <span id="clock-label">Começou em</span>
+          <input type="datetime-local" id="cfg-clock" step="1"
+            aria-label="Data e hora em que o cronômetro começou" />
+          <button class="btn-set secondary" id="btn-clock-now" type="button">Agora</button>
+        </div>
+        <div class="clock-actions">
+          <button class="btn-set btn-go" id="btn-clock-sync" type="button">Sincronizar e iniciar</button>
+          <button class="btn-set" id="btn-from-clock" type="button">Só calcular</button>
+        </div>
+        <span class="field-hint" id="clock-hint"></span>
+      </details>
     </section>
 
     <section class="config-card">
@@ -352,7 +355,7 @@
 
   <script src="/assets/js/crono-utils.js?v=20260906a"></script>
   <script src="/assets/js/finish-sound.js?v=20260429b"></script>
-  <script src="/assets/js/admin.js?v=20260906b"></script>
+  <script src="/assets/js/admin.js?v=20260906c"></script>
 </body>
 
 </html>
