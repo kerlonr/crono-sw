@@ -33,7 +33,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;600;900&display=swap"
     rel="stylesheet" />
   <script src="/socket.io/socket.io.js"></script>
-  <link rel="stylesheet" href="/assets/css/admin.css?v=20260906a" />
+  <link rel="stylesheet" href="/assets/css/admin.css?v=20260906b" />
 </head>
 
 <body>
@@ -233,10 +233,12 @@
         </div>
       </div>
 
+      <!-- Rotulos proprios: com "Aplicar e iniciar"/"So aplicar" nos dois
+           cartoes, os botoes ficavam indistinguiveis fora de contexto. -->
       <div class="setter-actions">
-        <button class="btn-set btn-go" id="btn-offset-start" type="button">Aplicar e iniciar</button>
-        <button class="btn-set" id="btn-apply-offset" type="button">Só aplicar</button>
-        <button class="btn-set secondary" id="btn-clear-offset" type="button">Zerar</button>
+        <button class="btn-set btn-go" id="btn-offset-start" type="button">Registrar e iniciar</button>
+        <button class="btn-set" id="btn-apply-offset" type="button">Só registrar</button>
+        <button class="btn-set discard" id="btn-clear-offset" type="button">Zerar</button>
       </div>
       <span class="field-hint" id="cfg-offset-hint"></span>
       <p class="cfg-ledger" id="cfg-ledger" data-state="ok" hidden></p>
@@ -350,7 +352,7 @@
 
   <script src="/assets/js/crono-utils.js?v=20260906a"></script>
   <script src="/assets/js/finish-sound.js?v=20260429b"></script>
-  <script src="/assets/js/admin.js?v=20260906a"></script>
+  <script src="/assets/js/admin.js?v=20260906b"></script>
 </body>
 
 </html>

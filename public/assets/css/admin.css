@@ -465,20 +465,26 @@ body.message-mode {
   text-transform: uppercase;
   cursor: pointer;
   white-space: nowrap;
-}.btn-start-d,
+}
+
+.btn-start-d,
 .btn-set {
   background:
     linear-gradient(135deg, rgba(63, 201, 177, 0.56), rgba(85, 174, 246, 0.34)),
     rgba(255, 255, 255, 0.62);
   color: #09253d;
-}.btn-pause-d,
+}
+
+.btn-pause-d,
 .btn-set.secondary,
 .btn-drawer-action.sec {
   background:
     linear-gradient(135deg, rgba(247, 186, 82, 0.54), rgba(255, 213, 143, 0.3)),
     rgba(255, 255, 255, 0.62);
   color: #4a3208;
-}.btn-reset-d {
+}
+
+.btn-reset-d {
   background:
     linear-gradient(
       135deg,
@@ -488,7 +494,9 @@ body.message-mode {
     rgba(255, 255, 255, 0.52);
   color: #8a3350;
   border-color: rgba(255, 190, 208, 0.84);
-}.btn-reset-d:hover {
+}
+
+.btn-reset-d:hover {
   border-color: rgba(239, 111, 143, 0.42);
 }.btn-icon-d,
 .btn-close-modal,
@@ -1055,7 +1063,9 @@ body::after {
 .preset-del-btn:hover {
   border-color: rgba(122, 191, 255, 0.38);
   box-shadow: 0 18px 36px rgba(0, 0, 0, 0.28);
-}.btn-start-d,
+}
+
+.btn-start-d,
 .btn-set {
   background:
     linear-gradient(
@@ -1065,7 +1075,9 @@ body::after {
     ),
     rgba(13, 25, 44, 0.88);
   color: #03111d;
-}.btn-pause-d,
+}
+
+.btn-pause-d,
 .btn-set.secondary,
 .btn-drawer-action.sec {
   background:
@@ -1076,7 +1088,9 @@ body::after {
     ),
     rgba(34, 24, 10, 0.82);
   color: #221200;
-}.btn-reset-d {
+}
+
+.btn-reset-d {
   border-color: rgba(255, 59, 48, 0.28);
   background:
     linear-gradient(135deg, rgba(255, 59, 48, 0.28), rgba(54, 6, 6, 0.94)),
@@ -2179,4 +2193,53 @@ body.login-mode {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+
+/* ------------------------------------------------- semantica dos botoes
+
+   Os botoes do painel de ajustes herdavam a paleta do Start/Pause: `.btn-set`
+   dividia o gradiente verde com `.btn-start-d` e `.btn-set.secondary` dividia
+   o ambar com `.btn-pause-d`. O resultado era que TODO botao de configuracao
+   parecia a acao principal, e o ambar significava ao mesmo tempo "secundario"
+   (Salvar modelo, Agora, Mover) e "descarta" (Zerar) - deixando o Zerar mais
+   chamativo que o Aplicar ao lado dele.
+
+   A escala agora tem tres degraus e uma unica leitura:
+
+     .btn-go     acao recomendada do cartao (verde), no maximo uma por cartao
+     .btn-set    acao alternativa (vidro neutro)
+     .discard    descarta algo (vermelho discreto, sem gritar como o Remover)
+
+   O ambar volta a ser exclusivo do Pause, que e estado e nao acao. */
+.btn-set,
+.btn-set.secondary {
+  background:
+    linear-gradient(180deg, rgba(26, 41, 67, 0.82), rgba(10, 18, 33, 0.9)),
+    var(--glass-strong);
+  color: var(--ink);
+}
+
+.btn-set.secondary {
+  color: var(--ink-soft);
+}
+
+.btn-set:hover:not(:disabled) {
+  border-color: rgba(122, 191, 255, 0.38);
+  color: var(--ink);
+}
+
+/* Zerar/limpar: o vermelho avisa que algo e jogado fora, mas fica em contorno
+   para nao competir com o Remover, que apaga o cronometro inteiro. */
+.btn-set.discard {
+  border-color: rgba(255, 59, 48, 0.32);
+  background:
+    linear-gradient(180deg, rgba(46, 16, 18, 0.82), rgba(24, 8, 10, 0.9)),
+    var(--glass-strong);
+  color: #ffc9c4;
+}
+
+.btn-set.discard:hover:not(:disabled) {
+  border-color: rgba(255, 59, 48, 0.55);
+  color: #ffe5e2;
 }

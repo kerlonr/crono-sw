@@ -437,8 +437,24 @@
       timers: estadoBase.timers.map((timer) => advanceTimer(timer, atraso)),
     };
 
-    if (atraso > ATRASO_SUSPEITO_MS && socket.connected) {
-      setConexao("Sem resposta do servidor...");
+    // Silencio so e suspeito quando o servidor deveria estar falando: o tick
+    // existe enquanto ha cronometro rodando e e liberado quando o ultimo para.
+    // Sem esta condicao, um painel parado - o estado normal de quem acabou de
+    // abrir a tela - acusava o servidor de nao responder depois de 4 segundos,
+    // com a conexao perfeitamente viva.
+    const esperandoTick = estadoBase.timers.some(
+      (timer) => timer.status === "running",
+    );
+
+    if (entrou && socket.connected) {
+      // O aviso so aparece com tick pendente e so sai quando um estado fresco
+      // chega - limpar em qualquer outra condicao apagaria um "Reconectando..."
+      // ainda valido.
+      if (esperandoTick && atraso > ATRASO_SUSPEITO_MS) {
+        setConexao("Sem resposta do servidor...");
+      } else if (atraso <= ATRASO_SUSPEITO_MS) {
+        setConexao("");
+      }
     }
 
     renderizar();
